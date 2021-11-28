@@ -1,0 +1,927 @@
+Attribute VB_Name = "B_Coded_Colors"
+    'design and analysis pos/neg names
+Const posControl As String = "PTC"
+Const negControl As String = "NTC"
+    'single viral positives
+Public Const infaColor As String = "255"               'the numbers in "  " are RGB colors converted to decimal colors
+Public Const infbColor As String = "65535"             'to convert RGB --> decimal - insert command button on worksheet, copy/paste: MsgBox "Long color code: " & ActiveCell.Interior.Color
+Public Const sars2Color As String = "16711680"         'into the command button, select any colored cell and click the newly created command button
+    'coinfections and all other reruns
+Public Const infAinfBColor As String = "42495"
+Public Const infAsars2Color As String = "16711935"
+Public Const infBsars2Color As String = "130816"
+Public Const infAinfBsars2Color As String = "65536"
+Public Const invalidColor As String = "10724259"
+Public Const posclusterColor As String = "16764006"
+Public Const analyticalrecheckColor As String = "13421823"
+    'rejection
+Public Const rejectionColor As String = "3368601"
+    'not detected/font colors
+Public Const notDetectedColor As String = "15925181"
+Public Const whiteFont As String = "16777215"
+Public Const blackFont As String = "0"
+    'positive & negative fail/pass colors
+Const PosQC_Fail As String = "131327"
+Const NegQC_Fail As String = "65791"
+Const posQC_negQC_Pass As String = "65280"
+
+Sub Upload_Design_Analysis_Results(CalledFrom As String)
+
+Call OptimizeCode_Begin
+
+    Dim FileToOpen As Variant
+    Dim xRet As Boolean
+    Dim Name As String, accessionNumber As String
+    Dim Design_Analysis_WB As Workbook, Design_Analysis_WS As Worksheet, rrmWS1 As Worksheet, rrmWS2 As Worksheet, rrmWS3 As Worksheet, rrmWS4 As Worksheet
+    Dim rackPos As Range, interpResult As Range, positiveControl As Range
+    Dim infA As Range, infB As Range, sars2 As Range, rp As Range
+    Dim arr_Design_Analysis_Match, arrLoc, NegControlRack1, NegControlRack2, NegControlRack3, NegControlRack4
+    Dim Design_Analysis_Lastrow As Long, dlastRow As Long
+    Dim myPath As String
+    myPath = "X:\Resulting"
+    ChDrive myPath
+    ChDir myPath
+    Dim posQC1 As OLEObject
+    Dim negQC1 As OLEObject
+    Dim negQC2 As OLEObject
+    Dim negQC3 As OLEObject
+    Dim negQC4 As OLEObject
+    
+
+    FileToOpen = Application.GetOpenFilename(Title:="", FileFilter:="Comma-Separated Value Files (*.csv*),*csv*,Excel Files (*.xls*),*xls*,")       'if file types change to csv or something else, this needs changed
+        If FileToOpen <> False Then
+   
+            Name = CStr(FileToOpen)
+            xRet = IsWorkBookOpenNow(Name)
+           
+            Set Design_Analysis_WB = Application.Workbooks.Open(FileToOpen)
+            Set rrmWS1 = ThisWorkbook.Worksheets("RACK 1")
+            Set rrmWS2 = ThisWorkbook.Worksheets("RACK 2")
+            Set rrmWS3 = ThisWorkbook.Worksheets("RACK 3")
+            Set rrmWS4 = ThisWorkbook.Worksheets("RACK 4")
+            Set Design_Analysis_WS = Design_Analysis_WB.Worksheets(1)
+            Set posQC1 = rrmWS1.OLEObjects("Positive")
+            Set negQC1 = rrmWS1.OLEObjects("Negative")
+            Set negQC2 = rrmWS2.OLEObjects("Negative")
+            Set negQC3 = rrmWS3.OLEObjects("Negative")
+            Set negQC4 = rrmWS4.OLEObjects("Negative")
+            
+                With Design_Analysis_WS
+                    Design_Analysis_Lastrow = .Cells(.Rows.Count, "B").End(xlUp).Row         'SUPPORT DEFAULT EXPORT - changed "A" to "B"
+                    dlastRow = .Cells(.Rows.Count, "D").End(xlUp).Row
+                End With
+                
+                Set positiveControl = Design_Analysis_WS.Range("D1:D" & dlastRow).Find(posControl, LookIn:=xlValues).Offset(0, -2)
+                
+        For Each Sh In ThisWorkbook.Sheets(Array("RACK 1", "RACK 2", "RACK 3", "RACK 4"))
+           If CalledFrom = "RACK 1" Then
+   
+        If Sh.Name = "RACK 1" Then
+
+            arrLoc = Array("A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", _
+                           "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", _
+                           "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", _
+                           "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", _
+                           "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", _
+                           "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", _
+                           "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12", _
+                           "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H9", "H10", "H11", "H12")
+        ElseIf Sh.Name = "RACK 2" Then
+        
+            arrLoc = Array("A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23", "A24", _
+                           "B13", "B14", "B15", "B16", "B17", "B18", "B19", "B20", "B21", "B22", "B23", "B24", _
+                           "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", _
+                           "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20", "D21", "D22", "D23", "D24", _
+                           "E13", "E14", "E15", "E16", "E17", "E18", "E19", "E20", "E21", "E22", "E23", "E24", _
+                           "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24", _
+                           "G13", "G14", "G15", "G16", "G17", "G18", "G19", "G20", "G21", "G22", "G23", "G24", _
+                           "H13", "H14", "H15", "H16", "H17", "H18", "H19", "H20", "H21", "H22", "H23", "H24")
+        ElseIf Sh.Name = "RACK 3" Then
+        
+            arrLoc = Array("I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I11", "I12", _
+                           "J1", "J2", "J3", "J4", "J5", "J6", "J7", "J8", "J9", "J10", "J11", "J12", _
+                           "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8", "K9", "K10", "K11", "K12", _
+                           "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12", _
+                           "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11", "M12", _
+                           "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N10", "N11", "N12", _
+                           "O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8", "O9", "O10", "O11", "O12", _
+                           "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12")
+        ElseIf Sh.Name = "RACK 4" Then
+        
+            arrLoc = Array("I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", _
+                           "J13", "J14", "J15", "J16", "J17", "J18", "J19", "J20", "J21", "J22", "J23", "J24", _
+                           "K13", "K14", "K15", "K16", "K17", "K18", "K19", "K20", "K21", "K22", "K23", "K24", _
+                           "L13", "L14", "L15", "L16", "L17", "L18", "L19", "L20", "L21", "L22", "L23", "L24", _
+                           "M13", "M14", "M15", "M16", "M17", "M18", "M19", "M20", "M21", "M22", "M23", "M24", _
+                           "N13", "N14", "N15", "N16", "N17", "N18", "N19", "N20", "N21", "N22", "N23", "N24", _
+                           "O13", "O14", "O15", "O16", "O17", "O18", "O19", "O20", "O21", "O22", "O23", "O24", _
+                           "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24")
+        End If
+    End If
+            For Each rackPos In Design_Analysis_WS.Range("B1:B" & Design_Analysis_Lastrow).Cells                    'SUPPORT DEFAULT EXPORT - changed ("A1:A") to ("B1:B")
+                arr_Design_Analysis_Match = Application.Match(rackPos.Value, arrLoc, 0)
+                    If Not IsError(arr_Design_Analysis_Match) Then
+                        
+                        If rackPos.Offset(0, 3).Value = "InfA" Then                                                 'SUPPORT DEFAULT EXPORT - Finding "Target" column - changed offset from (0,2) to (0,3)
+                            accessionNumber = rackPos.Offset(0, 2).Value                                            'SUPPORT DEFAULT EXPORT - Finding Acession Number (SAMPLE) - changed offset(0,1) to offset(0,2)
+            
+                                Set interpResult = Sh.Range("C6:N13").Find(accessionNumber, LookIn:=xlValues)
+                                Set infA = rackPos.Offset(0, 11)                                                    'SUPPORT DEFAULT EXPORT - Find Cq value column for each target - changed offset(0,4) to offset(0,11)
+                                Set infB = infA.Offset(1, 0)
+                                Set sars2 = infB.Offset(1, 0)
+                                Set rp = sars2.Offset(1, 0)
+
+                            If rackPos.Value = positiveControl.Value Then
+                                If infA.Value < 38 And infB.Value < 38 And sars2.Value < 38 And rp.Value < 38 Then      'Pos QC Check - if A and B and Sars and rp are < 38 then pass - otherwise fail
+                                    posQC1.Object = True
+                                Else: posQC1.Object = False
+                                End If
+                            End If
+                            
+                            If Sh.Name = "RACK 1" And rackPos.Offset(0, 2).Value = negControl Then      'If searching "RACK 1" worksheet, find the negative control by searching for "NTC".
+                                NegControlRack1 = rackPos.Value                                         'When found, store this position (A1-H12) in NegControlRack1 to use later
+                                
+                                If (rp.Value > 38 Or rp.Value = "Undetermined") Or (infA.Value < 38 Or infB.Value < 38 Or sars2.Value < 38) Then
+                                    negQC1.Object = False
+                                    With rrmWS1.Range("D6")
+                                        .Interior.Color = NegQC_Fail
+                                    End With
+                                Else: negQC1.Object = True
+                                    With rrmWS1.Range("D6")
+                                        .Interior.Color = posQC_negQC_Pass
+                                    End With
+                                End If
+                            End If
+
+                            If Sh.Name = "RACK 2" And rackPos.Offset(0, 2).Value = negControl Then
+                                    NegControlRack2 = rackPos.Value
+                                
+                                If (rp.Value > 38 Or rp.Value = "Undetermined") Or (infA.Value < 38 Or infB.Value < 38 Or sars2.Value < 38) Then
+                                    negQC2.Object = False
+                                    With rrmWS2.Range("D6")
+                                        .Interior.Color = NegQC_Fail
+                                    End With
+                                Else: negQC2.Object = True
+                                    With rrmWS2.Range("D6")
+                                        .Interior.Color = posQC_negQC_Pass
+                                    End With
+                                End If
+                            End If
+
+                            If Sh.Name = "RACK 3" And rackPos.Offset(0, 2).Value = negControl Then
+                                NegControlRack3 = rackPos.Value
+            
+                                If (rp.Value > 38 Or rp.Value = "Undetermined") Or (infA.Value < 38 Or infB.Value < 38 Or sars2.Value < 38) Then
+                                        negQC3.Object = False
+                                            With rrmWS3.Range("D6")                                            'have to add this part because negQC2.object = false is not triggering color change
+                                                .Interior.Color = NegQC_Fail
+                                            End With
+                                    Else: negQC3.Object = True
+                                            With rrmWS3.Range("D6")
+                                                .Interior.Color = posQC_negQC_Pass
+                                            End With
+                                End If
+                            End If
+
+                            If Sh.Name = "RACK 4" And rackPos.Offset(0, 2).Value = negControl Then
+                                NegControlRack4 = rackPos.Value
+                            
+                                If (rp.Value > 38 Or rp.Value = "Undetermined") Or (infA.Value < 38 Or infB.Value < 38 Or sars2.Value < 38) Then
+                                        negQC4.Object = False
+                                            With rrmWS4.Range("D6")                                            'have to add this part because negQC2.object = false is not triggering color change
+                                                .Interior.Color = NegQC_Fail
+                                            End With
+                                    Else: negQC4.Object = True
+                                            With rrmWS4.Range("D6")
+                                                .Interior.Color = posQC_negQC_Pass
+                                            End With
+                                    End If
+                                End If
+                        
+                                If rackPos.Value <> positiveControl.Value And rackPos.Value <> NegControlRack1 And rackPos.Value <> NegControlRack2 And rackPos.Value <> NegControlRack3 And rackPos.Value <> NegControlRack4 Then
+                                    If Not (interpResult Is Nothing) Then
+                                        If rp.Value <= 38 And (infA.Value > 38 Or infA.Value = "Undetermined") And (infB.Value = "Undetermined" Or infB.Value > 38) And (sars2.Value = "Undetermined" Or sars2.Value > 38) Then
+                                            With interpResult
+                                                .Interior.Color = xlNone      'Not Detected - rp < 38 all viral values > 38 or undetermined
+                                                .Font.Color = blackFont
+                                            End With
+                                        ElseIf (rp.Value > 38 Or rp.Value = "Undetermined") And (infA.Value > 38 Or infA.Value = "Undetermined") And (infB.Value = "Undetermined" Or infB.Value > 38) And (sars2.Value = "Undetermined" Or sars2.Value > 38) Then
+                                            With interpResult
+                                                .Interior.Color = invalidColor        'invalid - if rp > 38 or undetermined and all viral values are > 38 or undetermined
+                                                .Font.Color = blackFont
+                                            End With
+                                        ElseIf infA.Value <= 38 And (infB.Value = "Undetermined" Or infB.Value > 38) And (sars2.Value = "Undetermined" Or sars2.Value > 38) Then
+                                            With interpResult
+                                                .Interior.Color = infaColor         'infA positive
+                                                .Font.Color = whiteFont
+                                            End With
+                                        ElseIf (infA.Value = "Undetermined" Or infA.Value > 38) And infB.Value <= 38 And (sars2.Value = "Undetermined" Or sars2.Value > 38) Then
+                                            With interpResult
+                                                .Interior.Color = infbColor         'infB positive
+                                                .Font.Color = blackFont
+                                            End With
+                                        ElseIf (infA.Value = "Undetermined" Or infA.Value > 38) And (infB.Value = "Undetermined" Or infB.Value > 38) And sars2.Value <= 38 Then
+                                            With interpResult
+                                                .Interior.Color = sars2Color        'sars2 positive
+                                                .Font.Color = whiteFont
+                                            End With
+                                        ElseIf infA.Value <= 38 And infB.Value <= 38 And (sars2.Value = "Undetermined" Or sars2.Value > 38) Then
+                                            With interpResult
+                                                .Interior.Color = infAinfBColor     'infA + infB positive
+                                                .Font.Color = blackFont
+                                            End With
+                                        ElseIf infA.Value <= 38 And (infB.Value = "Undetermined" Or infB.Value > 38) And sars2.Value <= 38 Then
+                                            With interpResult
+                                                .Interior.Color = infAsars2Color    'infA + sars2 positive
+                                                .Font.Color = whiteFont
+                                            End With
+                                        ElseIf (infA.Value = "Undetermined" Or infA.Value > 38) And infB.Value <= 38 And sars2.Value <= 38 Then
+                                            With interpResult
+                                                .Interior.Color = infBsars2Color    'infB + sars2 positive
+                                                .Font.Color = blackFont
+                                            End With
+                                        ElseIf infA.Value <= 38 And infB.Value <= 38 And sars2.Value <= 38 Then
+                                            With interpResult
+                                                .Interior.Color = infAinfBsars2Color    'infA + infB + sars2 positive
+                                                .Font.Color = whiteFont
+                                            End With
+                                        End If
+                                    Else: MsgBox ("Accession Number: " & accessionNumber & " was not found." & vbNewLine & vbNewLine & "Double check the accession number in the excel file vs the one programmed into the QuantStudio")
+                                    End If
+                                End If
+                        Else: GoTo NextIteration
+                        End If
+                    End If
+                    
+NextIteration:         Next rackPos
+    Next Sh
+            If xRet <> True Then
+                Design_Analysis_WB.Close False
+            End If
+            
+        End If
+
+Call OptimizeCode_End
+End Sub
+Sub Negative_QC()
+If ThisWorkbook.ActiveSheet.Negative.Value = True Then
+        ThisWorkbook.ActiveSheet.Range("D6").Interior.Color = posQC_negQC_Pass
+        ThisWorkbook.ActiveSheet.Negative.BackColor = posQC_negQC_Pass
+
+ElseIf ThisWorkbook.ActiveSheet.Negative.Value = False Then
+        ThisWorkbook.ActiveSheet.Range("D6").Interior.Color = NegQC_Fail
+        ThisWorkbook.ActiveSheet.Negative.BackColor = NegQC_Fail
+End If
+End Sub
+Sub Positive_QC()
+
+If ThisWorkbook.ActiveSheet.Positive.Value = True Then
+    ThisWorkbook.ActiveSheet.Range("C6").Interior.Color = posQC_negQC_Pass
+    ThisWorkbook.ActiveSheet.Positive.BackColor = posQC_negQC_Pass
+ 
+ElseIf ThisWorkbook.ActiveSheet.Positive.Value = False Then
+        ThisWorkbook.ActiveSheet.Range("C6").Interior.Color = PosQC_Fail
+        ThisWorkbook.ActiveSheet.Positive.BackColor = PosQC_Fail
+End If
+End Sub
+Sub RemoveColor_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 5) Then Exit Sub
+
+    If Selection.Interior.Color = rejectionColor Then
+        Call OptimizeCode_Begin
+        
+        Dim fRng As Range, sRng As Range, cRng As Range, cRngS As String
+        Dim lCell As String, c
+        Set sRng = Cells(16, 12)
+        Set fRng = Cells(Rows.Count, "L").End(xlUp)
+        Set cRng = Selection.Parent.Cells(Selection.Row, "B")
+        cRngS = Right(Selection.Parent.Cells(Selection.Row, "B").Value, 1)
+        lCell = Left(Selection.Parent.Cells(5, Selection.Column).Value, 2)
+        c = cRngS & lCell
+        Range(sRng, fRng).Find(c).Delete
+    End If
+
+Selection.Interior.Color = xlNone
+Selection.Font.Color = blackFont
+
+Call OptimizeCode_End
+End Sub
+Public Sub infA_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infaColor
+     Selection.Font.Color = whiteFont
+End Sub
+Public Sub infB_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infbColor
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub sars2_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = sars2Color
+     Selection.Font.Color = whiteFont
+End Sub
+Sub Not_Detected_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = notDetectedColor
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub Rejection_Result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+
+Dim destRng As Range, cRng As Range, lCell As String, cRngS As String
+Set cRng = Selection.Parent.Cells(Selection.Row, "B")
+cRngS = Right(Selection.Parent.Cells(Selection.Row, "B").Value, 1)
+lCell = Left(Selection.Parent.Cells(5, Selection.Column).Value, 2)
+Set destRng = ActiveSheet.Cells(Rows.Count, "L").End(xlUp).Offset(1, 0)
+
+
+A = InputBox("List of Rejections:" & vbNewLine & vbNewLine & "1. Quantity Not Sufficient (QNS)" & vbNewLine & "2. Contaminated Specimen (CS)" & vbNewLine & "3. Mismatched Specimen (MS)" & vbNewLine & "4. Missing Specimen Swab (MSS)" & vbNewLine & "5. Specimen Too Old (STO)" & vbNewLine & "6. Unapproved Media Type (UMT)" & vbNewLine & "7. Unapproved Specimen Type (UST)" & vbNewLine & "8. Unlabeled Specimen (US)" & vbNewLine & "9. Dry Swab (DS)" & vbNewLine & vbNewLine & "Enter number 1-9 to record rejection." & vbNewLine)
+If A = 0 Or A = "" Or A > 9 Then Exit Sub
+        With destRng
+            .Font.Size = 14
+            .HorizontalAlignment = xlHAlignLeft
+            .VerticalAlignment = xlVAlignCenter
+        End With
+If A = 1 Then
+    destRng.Value = cRngS & lCell & " - " & "Quantity Not Sufficient (QNS)"
+ElseIf A = 2 Then
+    destRng.Value = cRngS & lCell & " - " & "Contaminated Specimen (CS)"
+ElseIf A = 3 Then
+    destRng.Value = cRngS & lCell & " - " & "Mismatched Specimen (MS)"
+ElseIf A = 4 Then
+    destRng.Value = cRngS & lCell & " - " & "Missing Specimen Swab (MSS)"
+ElseIf A = 5 Then
+    destRng.Value = cRngS & lCell & " - " & "Specimen too old (STO)"
+ElseIf A = 6 Then
+    destRng.Value = cRngS & lCell & " - " & "Unapproved Media Type (UMT)"
+ElseIf A = 7 Then
+    destRng.Value = cRngS & lCell & " - " & "Unapproved Specimen Type (UST)"
+ElseIf A = 8 Then
+    destRng.Value = cRngS & lCell & " - " & "Unlabeled Specimen (US)"
+ElseIf A = 9 Then
+    destRng.Value = cRngS & lCell & " - " & "Dry Swab (DS)"
+End If
+
+Selection.Interior.Color = rejectionColor
+Selection.Font.Color = whiteFont
+End Sub
+Public Sub Analytical_Recheck_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = analyticalrecheckColor
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub Cluster_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = posclusterColor
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub infA_infB_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infAinfBColor
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub infA_sars2_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infAsars2Color
+     Selection.Font.Color = whiteFont
+End Sub
+Public Sub infB_sars2_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infBsars2Color
+     Selection.Font.Color = blackFont
+End Sub
+Public Sub infA_infB_sars2_result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = infAinfBsars2Color
+     Selection.Font.Color = whiteFont
+End Sub
+Public Sub Invalid_Result()
+If (Selection.Column > 14) Or (Selection.Row > 13) Or (Selection.Row < 6) Then Exit Sub
+     Selection.Interior.Color = invalidColor
+     Selection.Font.Color = blackFont
+End Sub
+Sub Generate_Reruns()
+
+        Call OptimizeCode_Begin
+
+Dim rrWS As Worksheet
+Dim idCell As Range, rngDest As Range
+Dim n As Long, arrColors
+    
+    Set rrWS = Worksheets("Reruns To Pull")
+
+    arrColors = Array(CLng(infAinfBColor), CLng(infAsars2Color), _
+                      CLng(infBsars2Color), CLng(infAinfBsars2Color), _
+                      CLng(invalidColor), CLng(analyticalrecheckColor), _
+                      CLng(posclusterColor))
+    
+    rrWS.Range("A5:K102").Clear
+    
+    For n = 1 To 4
+    
+        Set rngDest = rrWS.Cells(Rows.Count, "A").Offset(0, (n - 1) * 3).End(xlUp).Offset(1, 0)
+                         
+        For Each idCell In Worksheets("RACK " & n).Range("C6:N13").Cells
+        
+            If idCell.Borders(xlDiagonalUp).LineStyle = xlContinuous And idCell.Borders(xlDiagonalUp).Weight = xlThick Then                              'if an indicator line exists on any RACK worksheet, display message box with line location and stop running the macro
+                MsgBox ("An indicator line was found on: " & idCell.Worksheet.Name & vbNewLine & vbNewLine & "Remove indicator line to continue")
+                rrWS.Range("A5:K100").Clear
+                Call OptimizeCode_End
+                Exit Sub
+            End If
+            
+            If idCell.Interior.Color = NegQC_Fail Then                                                      'if any negative control cells failed and colored red, then the macro will skip to the next worksheet, ignoring the RACK that failed.  NextIteration is shown next to ( Next n )
+                With Range(rngDest, rngDest.Offset(4, 0))
+                    .Value = "QC Fail.  Don't Pull!"
+                    .Font.Size = 24
+                    .Font.Bold = True
+                End With
+                GoTo NextIteration
+            End If
+            If idCell.Interior.Color = PosQC_Fail Then
+                MsgBox ("Postive Control Failed.")
+                    Call OptimizeCode_End
+                Exit Sub
+            End If
+            If Not IsError(Application.Match(idCell.Interior.Color, arrColors, 0)) Then                                 'if any color = rerun color then return to rrWS in proper column
+                
+                With rngDest
+                    .Value = idCell.Value
+                    .Interior.Color = idCell.Interior.Color
+                    .Borders.Color = idCell.Borders.Color
+                    .Borders.Weight = idCell.Borders.Weight
+                    .Font.Color = idCell.Font.Color                                                                     'if the the colored cells have a border then keep border color/weight
+                    .Offset(0, 1).Borders(xlEdgeRight).Weight = xlThick                                                 'borders to clearly separate between racks
+                    .Offset(0, 1).Value = Right(idCell.Parent.Cells(idCell.Row, "B").Value, 1) & _
+                                                  Left(idCell.Parent.Cells(5, idCell.Column).Value, 2)                            'display rack location in next column
+                End With
+                
+                Set rngDest = rngDest.Offset(1, 0)
+                
+            ElseIf idCell.Borders.Color = RGB(102, 0, 102) Or idCell.Borders.Color = invalidColor Or idCell.Borders.Color = posclusterColor Then
+                
+                With rngDest
+                    .Value = idCell.Value                                                                'else if cells have border color and have white/red interior color then keep color + border/weight
+                    .Interior.Color = idCell.Interior.Color
+                    .Borders.Color = idCell.Borders.Color
+                    .Font.Color = idCell.Font.Color
+                    .Borders.Weight = idCell.Borders.Weight
+                    .Offset(0, 1).Borders(xlEdgeRight).Weight = xlThick
+                    .Offset(0, 1).Value = Right(idCell.Parent.Cells(idCell.Row, "B").Value, 1) & _
+                                                  Left(idCell.Parent.Cells(5, idCell.Column).Value, 2)
+                End With
+                
+                If idCell.Interior.Color = RGB(189, 255, 242) Or idCell.Interior.Color = RGB(153, 102, 51) Then  'Or idCell.Interior.Color = RGB(0, 0, 2) Or idCell.Interior.Color = RGB(255, 0, 3) Or idCell.Interior.Color = RGB(255, 0, 4) Or idCell.Interior.Color = RGB(255, 0, 5) Then 'if cell color is positive or negative (assuming it has blue borders - positive/negatives don't generate unless they have blue borders) then cross them off instantly
+                    With rngDest
+                        .Font.Strikethrough = True
+                        .Offset(0, 1).Font.Strikethrough = True
+                    End With
+                End If
+                
+                Set rngDest = rngDest.Offset(1, 0)
+                
+            End If
+                
+        Next idCell
+            
+NextIteration:    Next n
+    
+     With rrWS.Range("A5:A100, D5:D100, G5:G100, J5:J100")
+          .WrapText = True
+          .ColumnWidth = 30
+          .RowHeight = 18
+          .Font.Size = 14
+          .HorizontalAlignment = xlCenter
+          .VerticalAlignment = xlVAlignCenter
+     End With
+                
+     With rrWS.Range("B4:B98, E4:E98, H4:H98, K4:K98")
+          .ColumnWidth = 12
+          .Font.Size = 16
+          .Font.Bold = True
+          .WrapText = True
+          .HorizontalAlignment = xlCenter
+          .VerticalAlignment = xlVAlignCenter
+     End With
+
+        
+        Call OptimizeCode_End
+End Sub
+Sub Generate_Positives()
+
+Call OptimizeCode_Begin
+
+Dim pos2pullWS As Worksheet
+Dim posDest As Range, BorderedPos As Range
+Dim rackWS As Long, PosArray As Variant
+'Dim namePos As Integer, leftName As String
+'namePos = InStr(BorderedPos.Value, "1")
+'leftName = Left(BorderedPos.Value, namePos - 1)
+
+Set pos2pullWS = Worksheets("Positives To Pull")
+
+pos2pullWS.Range("A5:K102").Clear
+
+PosArray = Array(CLng(infaColor), CLng(infbColor), _
+                         CLng(sars2Color))
+
+For rackWS = 1 To 4
+
+        Set posDest = pos2pullWS.Cells(Rows.Count, "A").Offset(0, (rackWS - 1) * 3).End(xlUp).Offset(1, 0)
+
+    For Each BorderedPos In Worksheets("RACK " & rackWS).Range("C6:N13").Cells
+    
+        If BorderedPos.Borders(xlDiagonalUp).LineStyle = xlContinuous And BorderedPos.Borders(xlDiagonalUp).Weight = xlThick Then                              'if an indicator line exists on any RACK worksheet, display message box with line location and stop running the macro
+                MsgBox ("An indicator line was found on: " & BorderedPos.Worksheet.Name & vbNewLine & vbNewLine & "Remove indicator line to continue")
+                pos2pullWS.Range("A5:K102").Clear
+                Call OptimizeCode_End
+                Exit Sub
+        End If
+            
+            If BorderedPos.Interior.Color = NegQC_Fail Then                     'if any negative control cells failed and colored red, then the macro will skip to the next worksheet, ignoring the RACK that failed.  NextIteration is shown next to ( Next n )
+                With Range(posDest, posDest.Offset(4, 0))
+                    .Value = "QC Fail.  Don't Pull!"
+                    .Font.Size = 24
+                    .Font.Bold = True
+                End With
+                GoTo NextIteration
+            End If
+            If BorderedPos.Interior.Color = PosQC_Fail Then                     'if positive control fails then display msgbox and exit sub
+                MsgBox ("Postive Control Failed.")
+                Call OptimizeCode_End
+                Exit Sub
+            End If
+            
+          If Not IsError(Application.Match(BorderedPos.Interior.Color, PosArray, 0)) Then
+               If BorderedPos.Borders.Weight = xlThick Then
+                    With posDest
+                       .Value = BorderedPos.Value
+                       .Interior.Color = BorderedPos.Interior.Color
+                       .Font.Color = BorderedPos.Font.Color
+                       .Borders.Color = BorderedPos.Borders.Color
+                       .Borders.Weight = BorderedPos.Borders.Weight
+                       .Offset(0, 1).Borders(xlEdgeRight).Weight = xlThick
+                       .Offset(0, 1).Value = BorderedPos.Parent.Cells(BorderedPos.Row, "B").Value & _
+                                                       BorderedPos.Parent.Cells(5, BorderedPos.Column).Value
+                    End With
+                         Set posDest = posDest.Offset(1, 0)
+               End If
+          End If
+      
+Next BorderedPos
+NextIteration: Next rackWS
+
+        With pos2pullWS.Range("A5:A98, D5:D98, G5:G98, J5:J98")
+            .ColumnWidth = 30
+            .Rows.AutoFit
+            .Font.Size = 14
+            .WrapText = True
+            .HorizontalAlignment = xlLeft
+            .VerticalAlignment = xlVAlignCenter
+        End With
+    
+        With pos2pullWS.Range("B4:B98, E4:E98, H4:H98, K4:K98")
+            .ColumnWidth = 12
+            .Font.Size = 16
+            .Font.Bold = True
+            .WrapText = True
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlVAlignCenter
+        End With
+
+Call OptimizeCode_End
+
+End Sub
+Attribute VB_Name = "E_Rerun_File_Code"
+Public isExit As Boolean
+Public Property Get rrFilePath() As String
+    rrFilePath = "C:\Users\jacob\OneDrive\Desktop\10-17-21\FluVid\RERUN.xlsx"   '"X:\Resulting\FluV19\" & MonthName(Month(Now)) & " " & Year(Date) & " - FRM Rerun Sheet.xlsx"
+End Property
+Public Property Get rrFileName() As String
+    rrFileName = "RERUN.xlsx"      'MonthName(Month(Now)) & " " & Year(Date) & " - FRM Rerun Sheet.xlsx"
+End Property
+Public Property Get TrackingFile() As String
+     TrackingFile = "C:\Users\jacob\OneDrive\Desktop\10-17-21\FluVid\Tracking Information"
+End Property
+Public Property Get TrackingFileName() As String
+     TrackingFileName = "Tracking Information"
+End Property
+Sub Import_PT_To_Racks()
+
+Call OptimizeCode_Begin
+
+Dim ptWS As Worksheet, rrWS As Worksheet
+Dim dateRng As Range
+Dim ptName As Range, rackRng As Range
+Dim rrCol As Range
+Dim rackWS As Long, exportPT As Long, rrLastRow As Long
+Dim fName As Variant
+Dim Currentyear As String, CurrentMonthNoYear As String
+Dim MatchRow As Variant, MatchRng As Range
+
+Currentyear = Year(Date)
+CurrentMonthNoYear = MonthName(Month(Now))
+
+Set ptWS = ThisWorkbook.Worksheets("Import Patient Information")
+
+For Each dateRng In ptWS.Range("B4:E4")
+    If IsEmpty(dateRng.Value) Then                              'if there is no date/time in cells B1:E1
+        With dateRng                                            'then place N/A in all 3 rows for that rack
+            .Value = "N/A"
+            .Offset(1, 0).Value = "N/A"
+            .Offset(2, 0).Value = "N/A"
+        End With
+    End If
+    If Not IsEmpty(dateRng.Value) Then                          'if date/time is entered
+        If IsEmpty(dateRng.Offset(1, 0).Value) Then             'but no rack # then
+            Application.ScreenUpdating = True                   'turn on screenupdating
+                With dateRng.Offset(1, 0)
+                    .Interior.Color = RGB(255, 255, 0)          'change cell interior.color to yellow to indicate where the number needs to be placed
+                    MsgBox ("Enter Rack #")
+                    .Interior.Color = xlNone        'change cell interior.color back to white
+                End With
+            Exit Sub                                            'exit sub
+        End If
+    End If
+Next dateRng
+    
+    For exportPT = 1 To 4
+        SendToRacks ThisWorkbook.Worksheets("Import Patient Information").Range("B7:B100").Offset(0, exportPT - 1), _
+                    ThisWorkbook.Worksheets("RACK " & exportPT).Range("C6")
+    Next exportPT
+
+Const RNG_RACK As String = "C6:N13"
+
+Set rrWS = Workbooks.Open(rrFilePath).Sheets("Sheet1")
+With rrWS
+    rrLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+End With
+Set rrCol = rrWS.Range("A1:A" & rrLastRow).Cells
+
+Range("A1").Select
+
+For rackWS = 1 To 4
+
+    Set rackRng = ThisWorkbook.Worksheets("RACK " & rackWS).Range(RNG_RACK)
+        
+        rackRng.Borders.Color = RGB(0, 0, 0)
+        rackRng.Borders.Weight = xlThin
+
+     For Each ptName In rackRng.Cells
+          MatchRow = Application.Match(ptName, rrCol, 0)
+          If Not IsError(MatchRow) Then
+               Set MatchRng = rrWS.Cells(MatchRow, 1)
+               If MatchRng.Interior.Color = invalidColor Then
+                    With ptName.Borders
+                         .Color = invalidColor
+                         .Weight = xlThick
+                    End With
+               ElseIf MatchRng.Interior.Color = posclusterColor Then
+                    With ptName.Borders
+                         .Color = posclusterColor
+                         .Weight = xlThick
+                    End With
+               Else
+                    With ptName.Borders
+                         .Color = RGB(102, 0, 102)
+                         .Weight = xlThick
+                    End With
+               End If
+          End If
+     Next ptName
+Next rackWS
+
+rrWS.Parent.Close False 'close lookup workbook
+
+Call OptimizeCode_End
+
+fName = Application.GetSaveAsFilename(InitialFileName:="X:\Resulting\FluV19\Analyzed FRM Files\" & Currentyear & "\" & CurrentMonthNoYear & "\" & "FluV19 Resulting Macro(FRM) - ", FileFilter:="Excel Macro-Enabled Workbook Binary (*.XLSB), *.XLSB", Title:="Save As")
+If fName = False Then Exit Sub
+ActiveWorkbook.SaveAs FileName:=fName
+
+End Sub
+Sub UTIrrWBopen()
+
+Call OptimizeCode_Begin
+    Dim Ret
+    Dim checkifOpen As Workbook
+    
+    Set checkifOpen = Workbooks.Open(rrFilePath)
+    Ret = IsWorkBookOpenNow(rrFilePath)
+        
+        If checkifOpen.ReadOnly = True Then
+            MsgBox ("Rerun file is currently opened by another user." & vbNewLine & vbNewLine & "Have the other user close the file and try again.")
+            
+                isExit = True
+            Exit Sub
+        ElseIf Ret = True Then
+                isExit = False
+        Else
+            Workbooks.Open (rrFilePath)
+        End If
+Call OptimizeCode_End
+End Sub
+Sub rrWBSave()
+    Call OptimizeCode_Begin
+        With Workbooks(rrFileName)
+            .Save
+        End With
+    Call OptimizeCode_End
+End Sub
+Sub TrackingFileWBOpen()
+     Call OptimizeCode_Begin
+     
+     Dim NotOpen, FileOpen As Workbook
+     
+     Set FileOpen = Workbooks.Open(TrackingFile)
+     
+     If FileOpen.ReadOnly = True Then
+     
+     ElseIf NotOpen = True Then
+     
+     Else
+          Workbooks.Open (TrackingFile)
+     End If
+     
+     Call OptimizeCode_End
+End Sub
+
+'Sub FindName(ByVal sName As String)
+''Finds and activates the first cell
+''with the same content as the double-clicked cell. sName
+''is the passed cell content.
+'Dim rColumn As Range
+'Dim rFind As Range
+'Dim rrDC As Worksheet
+'
+'Set rrDC = Workbooks(rrFileName).Worksheets("Sheet1")
+'
+'rrDC.Activate
+'
+''Set the range rColumn = column A
+'Set rColumn = Columns("A:A")
+'
+''Search column A
+'Set rFind = rColumn.Find(sName)
+'
+''If found the cell is activated.
+'If Not rFind Is Nothing Then
+'   rFind.Activate
+'Else
+'   'If not found activate cell A1
+'   MsgBox ("Patient not found.")
+'   Exit Sub
+'End If
+'
+'Set rColumn = Nothing
+'Set rFind = Nothing
+'
+'End Sub
+Sub Export_Norm_RR()
+
+Call OptimizeCode_Begin
+
+Dim rrWS As Worksheet, rr2pWS As Worksheet
+Dim rr2pCol, col, rrColors, rrDup
+Dim rrLastRow As Long
+Dim c As Range, rrFileDest1 As Range
+Dim thinBorder As Range, rrCol As Range
+Dim RackNumber As String, RackDate As String
+
+     Set rrWS = Workbooks(rrFileName).Worksheets("Sheet1")                                 'CHANGE WORKSHEET NAME AND FILE EXTENSION
+     Set rr2pWS = ThisWorkbook.Worksheets("Reruns To Pull")
+     
+     
+        With rrWS
+            rrLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        End With
+        
+     Set rrCol = rrWS.Range("A1:A" & rrLastRow).Cells                                                    'USED TO BE rrWS.columns(1) - shortening the search range
+     
+    rrColors = Array(RGB(255, 165, 0), RGB(255, 0, 255), _
+                         RGB(0, 255, 1), RGB(0, 0, 1), _
+                         RGB(163, 163, 163), RGB(255, 204, 204), _
+                         RGB(102, 204, 255))
+                      
+                      
+    rr2pCol = Array("A", "D", "G", "J")
+    
+    Set rrFileDest1 = rrWS.Cells(Rows.Count, "A").End(xlUp).Offset(1, 0)
+
+    For Each col In rr2pCol
+        
+        If Not IsEmpty(rr2pWS.Cells(5, col).Value) Then                                             'if 5th row in each column in rr2pCol is not empty then
+            Application.FindFormat.Clear                                                            'clear fomat options
+            Application.FindFormat.Borders.Weight = xlThin                                          'set find format to find only cells with thin borders, IE not blue borders
+            
+            Set thinBorder = rr2pWS.Range(rr2pWS.Cells(5, col), rr2pWS.Cells(100, col)).Find("*", SearchFormat:=True) 'set the searchable range starting with row 5 to last used cell and .find only formatting of cells (cells with thin borders)
+            
+                If Not thinBorder Is Nothing Then                                                     'if thinBorder is not nothing then (if a thin border was found) then place the header from Reruns To Pull worksheet to the rerun file
+                    RackNumber = rr2pWS.Cells(4, col)
+                    RackDate = Left(rr2pWS.Cells(2, col).Value, (InStr(rr2pWS.Cells(2, col).Value, "  ")) - 1) 'Trims DATE  TIME value in A2
+                    With rrFileDest1
+                        .Value = RackDate & " " & RackNumber
+                        .Interior.Color = RGB(0, 0, 0)
+                        .Font.Color = RGB(255, 255, 255)
+                    End With
+                    Set rrFileDest1 = rrFileDest1.Offset(1, 0)
+                    Else: GoTo NextIteration                                                        'if thin border was not found then go to next column - only time this happens is if there are only blue borders found in the column
+                End If
+            Application.FindFormat.Clear                                                            'clear find formating options so ctrl+F functions normally and doesn't save any format search information
+        End If
+                                                                                                    'Checking if the patients that have a designated rerun color & no blue border have already been exported to rerun file.  Will only export those patients who have not been exported
+        For Each c In rr2pWS.Range(rr2pWS.Cells(5, col), rr2pWS.Cells(Rows.Count, col).End(xlUp)).Cells
+            If Not IsError(Application.Match(c.Interior.Color, rrColors, 0)) And c.Borders.Weight = xlThin Then     'if cell interior color is a rerun color and has thin borders, then export to column A of rerun worksheet
+                rrDup = Application.Match(c, rrCol, 0)                                              'once button is clicked, check for duplication of non-bordered patients
+                If Not IsError(rrDup) Then                                                          'if any patient with black borders are found on the rerun worksheet, don't export those
+            
+                Else
+                    With rrFileDest1            'Export ALL rerun Patient ID's to Rerun Sheet
+                        .Value = c.Value
+                        .Interior.Color = c.Interior.Color
+                        .Font.Color = c.Font.Color
+                    End With
+                    Set rrFileDest1 = rrFileDest1.Offset(1, 0)                                       'this button still places the header on the rerun sheet before this point is reached, this line deletes the header that is already placed.
+                    With rrWS.Columns(1)
+                        .ColumnWidth = 25
+                        .Font.Size = 12
+                        .WrapText = True
+                        .HorizontalAlignment = xlCenter
+                        .VerticalAlignment = xlVAlignCenter
+                    End With
+                End If
+            End If
+        Next c
+NextIteration:     Next col
+     
+'     Call PositiveTrackingFile
+     
+    MsgBox ("Reruns have been successfully exported!")
+    
+Call OptimizeCode_End
+End Sub
+
+Sub Export_Bordered_RR()
+
+Call OptimizeCode_Begin
+
+Dim rrWS As Worksheet, rr2pWS As Worksheet
+Dim rrCol As Range, BBpt As Range
+Dim rr2pCol, col, ptInfo, rrFileMatch, rrFileDest As Range
+Dim rrLastRow As Long, RackNum As String, RDate As String
+        
+    Set rrWS = Workbooks(rrFileName).Worksheets("Sheet1")                               'CHANGE WORKSHEET NAME AND FILE EXTENSION
+        With rrWS
+            rrLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        End With
+    Set rrCol = rrWS.Range("A1:A" & rrLastRow).Cells                                                  'USED TO BE rrWS.columns(1) - shortening the search range
+    Set rr2pWS = ThisWorkbook.Worksheets("Reruns To Pull")
+    
+    rr2pCol = Array("A", "D", "G", "J")                                                               'columns to be scanned and matched
+    
+    For Each col In rr2pCol                                                                           'loop source columns
+        For Each BBpt In rr2pWS.Range(rr2pWS.Cells(5, col), _
+                                         rr2pWS.Cells(Rows.Count, col).End(xlUp)).Cells
+            If BBpt.Borders.Color = RGB(102, 0, 102) Or BBpt.Borders.Color = invalidColor Or BBpt.Borders.Color = posclusterColor Then
+                ptInfo = BBpt.Value                                                                                    'value to look for
+                rrFileMatch = Application.Match(ptInfo, rrCol, 0)                                                      'match?
+                If Not IsError(rrFileMatch) Then
+                    RackNum = rr2pWS.Cells(4, col)     'rack number
+                    RDate = Left(rr2pWS.Cells(2, col).Value, (InStr(rr2pWS.Cells(2, col).Value, "  ")) - 1)   'Trims rack date to isolate date from time
+                    Set rrFileDest = rrWS.Cells(rrFileMatch, Columns.Count).End(xlToLeft).Offset(0, 1)                  'get empty cell
+                    rrFileDest.Value = ptInfo                                                                           'put the matched value
+                    CopyFormats BBpt, rrFileDest                                                                        'transfer formatting
+                    rrFileDest.Offset(0, 1).Value = RDate & " " & RackNum
+                    rrFileDest.Offset(0, 1).Interior.Color = RGB(0, 0, 0)
+                    rrFileDest.Offset(0, 1).Font.Color = RGB(255, 255, 255)
+                    If BBpt.Font.Strikethrough = True Then
+                        rrFileDest.EntireRow.Font.Strikethrough = True
+                    End If
+                    
+                        With rrWS.Range("A:M")
+                            .ColumnWidth = 25
+                            .Font.Size = 12
+                            .WrapText = True
+                            .HorizontalAlignment = xlCenter
+                            .VerticalAlignment = xlVAlignCenter
+                        End With
+                        
+                End If
+            End If
+        Next BBpt
+    Next col
+        
+        MsgBox ("Bordered reruns have been successfully exported!")
+        
+Call OptimizeCode_End
+End Sub
+Sub CopyFormats(cFrom As Range, cTo As Range)
+    With cTo
+        .Interior.Color = cFrom.Interior.Color
+        .Borders.Color = cFrom.Borders.Color
+        .Borders.Weight = cFrom.Borders.Weight
+        .Font.Color = cFrom.Font.Color
+    End With
+End Sub
+
