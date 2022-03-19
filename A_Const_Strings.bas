@@ -1,0 +1,15 @@
+Attribute VB_Name = "A_Const_Strings"
+Public Const PTC As String = "PTC"
+Public Const PEC As String = "PEC"
+Public Const NTC As String = "NTC"
+Public Const NEC As String = "NEC"
+Public Const pathPTC As String = "Path-PTC"
+Public Const pathPEC As String = "Path-PEC"
+Public Const pathNTC As String = "Path-NTC"
+Public Const pathNEC As String = "Path-NEC"
+Public Const amrPTC As String = "AMR-PTC"
+Public Const amrPEC As String = "AMR-PEC"
+Public Const amrNTC As String = "AMR-NTC"
+Public Const amrNEC As String = "AMR-NEC"
+
+
