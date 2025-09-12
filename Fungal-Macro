@@ -1,0 +1,1669 @@
+Attribute VB_Name = "C_Import_Fungal_Raw_Data"
+Sub Fungal_Compile_Raw_Data()
+
+Call OptimizeCode_Begin
+
+Dim FileToOpen As Variant, ResultFile As Variant, xRet As Boolean, Name As String
+Dim QSResultFileWB As Workbook, QSResultFileWS As Worksheet, FormattingWS As Worksheet, ImptPtInfo As Worksheet, PullReruns As Worksheet
+Dim SampleName As Range, QSTarget As Range, sampleArrayIK As Variant, sampleArrayDE As Variant, FormattingWBCrtLastRow As Long, FlaggedSpecimensLastRow As Long
+Dim CrtAverage As Range, FlaggedSpecimens As Range, FinalResult As Range, FirstTarget As Range, AccessionNumber As Range, FinalCrt As Range
+Dim NameChange As Range, NameChangeMatch As Variant, ELastRow As Long, AlastRow As Long, PreConvertedNames As Range, SampleNameLastRow As Long
+Dim DEColumnRng As Range, IKColumnRng As Range, DlastRow As Long, QSNameMatch As Variant, ResultFileSerialNumber As String
+Dim Counter As Long, SampleNameStart As Range, TotalRows As Integer, QCProblems As Range, QCProblemsLastRow As Long, SerialNumberInput As Range, ReportSerialNumber As Range
+Dim PostImportDLastRow As Long, EndPlateQSMatch As Variant, FindFullNameAndPosition As Range, myPath As String
+Dim PositiveExtractionControl As String, NegativeExtractionControl As String, NegativeTemplateControl As String, PositiveTemplateControl As String
+Dim ColumnBReruns As Range, ColumnBRerunsLastRow As Long, RedBorderSearchRng As Range, QSResultFileWSLastUsedColumn As Long
+Dim PECArr As Variant, NECArr As Variant, NTCArr As Variant, PTCArr As Variant
+Dim ClearStartRangeLastRowFung As Long, ClearStartRangeFung As Range, EstCopyNum As Range
+Dim Low As String, Moderate As String, High As String
+
+Dim TrichphyDetected As Integer, TrichphyIncon As Integer, TrichphyTargetName As String, GenericIncon As Integer, GenericDetected As Integer, GenericTargetName As String
+Dim rng As Range, rng2 As Range, rng3 As Range, rng4 As Range, CqConfArr As Variant, ArrROX As Variant, returnConfRNG As Range, roxRNG As Range
+
+
+'    ChDrive "X"
+    myPath = Dir("X:\Exports\Nail (Fungal) OpenArray")
+    If myPath <> "" Then
+        ChDir myPath
+    Else
+        MsgBox "Folder does not exist."
+    End If
+    
+    Low = "Low"   '1,000 - 10,000 copies/uL
+    Moderate = "Moderate"    '10,000 - 100,000 copies/uL
+    High = "High" '> 100,000 copies/uL
+    
+    PositiveExtractionControl = "PEC"
+    NegativeExtractionControl = "NEC"
+    NegativeTemplateControl = "NTC"
+    PositiveTemplateControl = "PTC"
+    
+    PECArr = Array("C. albicans", "F-Xeno")
+    NECArr = Array("F-Xeno")
+    NTCArr = Array("A. fumigatus", "A. niger", "A. strictum", "A. terreus", "A. versicolor", "Alternaria spp.", "C. albicans", "C. parapsilosis", "C. lunata", _
+                    "E. floccosum", "F. solani", "G. candidum", "M. audouinii", "M. canis", "M. gypseum", "M. nanum", "N. mangiferae", "P. onychis", "S. brevicaulis", "S. dimidiatum", _
+                    "S. scabiei", "T. beigelii", "T. interdigitale", "T. mucoides", "T. rubrum", "T. soudanense", "T. tonsurans", "T. violaceum", "F-Xeno", "Zygosaccharomyces spp.")
+    PTCArr = Array("A. fumigatus", "A. niger", "A. strictum", "A. terreus", "A. versicolor", "Alternaria spp.", "C. albicans", "C. parapsilosis", "C. lunata", _
+                    "E. floccosum", "F. solani", "G. candidum", "M. audouinii", "M. canis", "M. gypseum", "M. nanum", "N. mangiferae", "P. onychis", "S. brevicaulis", "S. dimidiatum", _
+                    "S. scabiei", "T. beigelii", "T. interdigitale", "T. mucoides", "T. rubrum", "T. soudanense", "T. tonsurans", "T. violaceum", "F-Xeno", "Zygosaccharomyces spp.")
+
+
+        Set FormattingWS = ThisWorkbook.Sheets("OpenArray Raw Data")
+                        
+ FileToOpen = Application.GetOpenFilename(FileFilter:="Excel Files (*.XLSX), *.XLSX", Title:="Select all files needing analyzed", MultiSelect:=True)       'if file types change to csv or something else, this needs changed
+        If Not IsArray(FileToOpen) Then Exit Sub
+
+        With FormattingWS
+            ClearStartRangeLastRowFung = .Cells(.Rows.Count, "D").End(xlUp).Row
+            Set ClearStartRangeFung = FormattingWS.Range("D10:O" & ClearStartRangeLastRowFung)
+            ClearStartRangeFung.Clear
+            .Range("A3:C500").Clear
+        End With
+
+        With FormattingWS
+            .Range("D10").Value = "Sample Name"
+            .Range("E10").Value = "Target Name"
+            .Range("F10").Value = "Cq"
+            .Range("G10").Value = "Cq Confidence"
+            .Range("H10").Value = "ROX"
+            .Range("I10").Value = "Serial Number"
+            .Range("M10").Value = "Final Result"
+            .Range("N10").Value = "Final Crt"
+            .Range("O10").Value = "Est. Copy Number"
+            With FormattingWS.Range("D10:Q10")
+                .HorizontalAlignment = xlHAlignCenter
+                .Font.Size = 14
+                .Font.Bold = True
+            End With
+        End With
+                
+                'select all result files at once
+        For Each ResultFile In FileToOpen   '---------------------------------Import Result Files (Start)----------------------------
+            Set QSResultFileWB = Workbooks.Open(ResultFile)
+            Set QSResultFileWS = QSResultFileWB.Sheets("Results")
+                TotalRows = 0
+                Counter = 0
+            With QSResultFileWS
+                Set SampleName = .Range("A1:Q50").Find("Sample Name")
+                SampleNameLastRow = .Cells(.Rows.Count, SampleName.Column).End(xlUp).Row
+                Set SampleNameStart = .Range("D" & SampleName.Row).Offset(1, 0)
+                QSResultFileWSLastUsedColumn = .Cells(20, Columns.Count).End(xlToLeft).Column               '------------------------------Sort Data to get Targets Grouped Together(Start)-----------------------------
+
+                .Sort.SortFields.Clear
+                .Sort.SortFields.Add2 Key:=Range("D21:D" & SampleNameLastRow), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+                .Sort.SortFields.Add2 Key:=Range("E21:E" & SampleNameLastRow), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+                With QSResultFileWS.Sort
+                    .SetRange QSResultFileWS.Range(QSResultFileWS.Cells(20, 1), QSResultFileWS.Cells(SampleNameLastRow, QSResultFileWSLastUsedColumn))
+                    .Header = xlYes
+                    .MatchCase = False
+                    .Orientation = xlTopToBottom
+                    .SortMethod = xlPinYin
+                    .Apply
+                End With                                                                                    '------------------------------Sort Data to get Targets Grouped Together(End)-----------------------------
+                
+                With QSResultFileWS.Range("D" & SampleNameStart.Row, "D" & SampleNameLastRow)
+                    Dim r As Range
+                    For Each r In .Rows
+                        If r.Value = vbNullString Then
+                            GoTo CountNextRow
+                        End If
+                        If r.Offset(0, 1).Value = vbNullString Then
+                            r.Value = vbNullString
+                        End If
+                        If Application.CountA(r) <> 0 Then
+                            Counter = Counter + 1
+                        End If
+CountNextRow:       Next r
+                    TotalRows = Counter
+                End With
+                ResultFileSerialNumber = QSResultFileWS.Range("B1").Value
+                Set rng = .Range("D21:E" & SampleNameLastRow)
+                Set rng2 = .Range("I21:I" & SampleNameLastRow)
+                Set rng3 = .Range("M21:M" & SampleNameLastRow)
+                Set rng4 = .Range("P21:P" & SampleNameLastRow)
+                sampleArrayDE = rng.Worksheet.Evaluate("FILTER(" & rng.Address & "," & rng.Columns(1).Address & "<>"""")")
+                sampleArrayIK = rng2.Worksheet.Evaluate("FILTER(" & rng2.Address & "," & rng.Columns(1).Address & "<>"""")")
+                CqConfArr = rng3.Worksheet.Evaluate("FILTER(" & rng3.Address & "," & rng.Columns(1).Address & "<>"""")")
+                ArrROX = rng4.Worksheet.Evaluate("FILTER(" & rng4.Address & "," & rng.Columns(1).Address & "<>"""")")
+            End With
+            
+            With FormattingWS
+                DlastRow = FormattingWS.Cells(Rows.Count, "D").End(xlUp).Row
+                
+                Set DEColumnRng = FormattingWS.Range("D" & DlastRow).Offset(1, 0)       'Sample & Target Name
+                Set IKColumnRng = FormattingWS.Range("F" & DlastRow).Offset(1, 0)       'Crt
+                Set returnConfRNG = FormattingWS.Range("G" & DlastRow).Offset(1, 0)     'Cq Conf
+                Set roxRNG = FormattingWS.Range("H" & DlastRow).Offset(1, 0)                'ROX
+                Set SerialNumberInput = FormattingWS.Range("I" & DlastRow).Offset(1, 0)     'Serial Number
+
+                FormattingWS.Range(DEColumnRng, "E" & (DEColumnRng.Row + TotalRows) - 1).Value = sampleArrayDE
+                FormattingWS.Range(IKColumnRng, "F" & (DEColumnRng.Row + TotalRows) - 1).Value = sampleArrayIK
+                FormattingWS.Range(returnConfRNG, "G" & (DEColumnRng.Row + TotalRows) - 1).Value = CqConfArr
+                FormattingWS.Range(roxRNG, "H" & (DEColumnRng.Row + TotalRows) - 1).Value = ArrROX
+                FormattingWS.Range(SerialNumberInput, "I" & (DEColumnRng.Row + TotalRows) - 1).Value = ResultFileSerialNumber
+            End With
+                Erase sampleArrayDE
+                Erase sampleArrayIK
+                Erase CqConfArr
+                Erase ArrROX
+            QSResultFileWS.Parent.Close False
+        Next ResultFile                     '---------------------------------Import Result Files (End)-------------------------------
+        
+        Set ImptPtInfo = ThisWorkbook.Worksheets("Import Patient Information")
+        Set PullReruns = ThisWorkbook.Worksheets("Reruns To Pull")
+        
+        With PullReruns             '------------------------------Set Location on Reruns To Pull for Inconclusives + Reruns (Start)----------------------------------------
+            .Range("A9:D1000").Clear
+                ColumnBRerunsLastRow = PullReruns.Cells(Rows.Count, "C").End(xlUp).Row
+            Set ColumnBReruns = PullReruns.Range("C" & ColumnBRerunsLastRow).Offset(1, -2)
+        End With                    '------------------------------Set Location on Reruns To Pull for Inconclusives + Reruns (End)----------------------------------------
+            
+        With FormattingWS
+              FormattingWBCrtLastRow = .Cells(.Rows.Count, "F").End(xlUp).Row
+              ELastRow = .Cells(.Rows.Count, "E").End(xlUp).Row
+              QCProblemsLastRow = .Cells(Rows.Count, "C").End(xlUp).Row       'change this to Columns A B and C
+          Set QCProblems = .Range("C" & QCProblemsLastRow).Offset(1, 0)
+              PostImportDLastRow = .Cells(Rows.Count, "D").End(xlUp).Row
+          Set RedBorderSearchRng = .Range("D1:D" & PostImportDLastRow).Cells
+        End With
+        
+        With FormattingWS.Range("D11:E" & FormattingWBCrtLastRow, "O11:O" & FormattingWBCrtLastRow)
+            .NumberFormat = "@"
+        End With
+        With FormattingWS.Range("I11:M" & FormattingWBCrtLastRow)
+            .NumberFormat = "@"
+        End With
+        With FormattingWS.Range("F11:H" & FormattingWBCrtLastRow, "N11:N" & FormattingWBCrtLastRow)
+            .NumberFormat = "0.00"
+        End With
+        
+        With varStorage
+            AlastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+            Set PreConvertedNames = .Range("A1:A" & AlastRow)
+        End With
+        
+        For Each NameChange In FormattingWS.Range("E11:E" & ELastRow).Cells     '-----------------------------Translate Target Names (Start)---------------------------------------
+            NameChangeMatch = Application.Match(NameChange.Value, PreConvertedNames, 0) 'use helper columns in columns U and V on destination workbook to match/change names of everything in column e
+                If Not IsError(NameChangeMatch) Then
+                    With NameChange
+                        .Value = varStorage.Cells(NameChangeMatch, 2)
+                    End With
+                End If
+        Next NameChange                                                         '-----------------------------Translate Target Names (End)-----------------------------------------
+        
+        '6-20-22 - CHANGED INTERPRETATION TO BE EVERYTHING BELOW
+        
+        Dim cqCutoff As Double, cqConfCutoff As Double, roxCutoff As Long, NumReplicates As Integer
+            cqCutoff = ImptPtInfo.Range("N11").Value
+            cqConfCutoff = ImptPtInfo.Range("O11").Value
+            roxCutoff = ImptPtInfo.Range("P11").Value
+            NumReplicates = ImptPtInfo.Range("Q10").Value
+
+        Dim CRT As Range, replicateConf As Range, replicateROX As Range, roxScore As Range
+        Dim CqArr As Variant, cqArrCount As Integer
+        Dim minCq As Double
+        Dim microbialLoad As Range
+        Dim highlightROX As Range
+        Dim invalidArr, invalidCount As Integer, invalidRNG As Range, j As Long
+        
+        ReDim invalidArr(1 To 30) As String
+        invalidCount = 0
+        
+        For i = 11 To FormattingWBCrtLastRow Step 3
+            
+            Set AccessionNumber = FormattingWS.Cells(i, 4)
+            Set FirstTarget = FormattingWS.Cells(i, 5)
+            Set CRT = FormattingWS.Cells(i, 6)
+            Set roxScore = FormattingWS.Cells(i, 8)
+            Set FinalResult = FormattingWS.Cells(i, 13)
+            Set FinalCrt = FormattingWS.Cells(i, 14)
+            Set microbialLoad = FormattingWS.Cells(i, 15)
+            
+            cqArrCount = 1                      'array resets after every 3 replicates
+            ReDim CqArr(1 To 3) As Variant
+            
+            For Each CRT In FormattingWS.Range(CRT, CRT.Offset(2, 0)).Cells
+                Set replicateConf = CRT.Offset(0, 1)  'set individual replicate cq conf values
+                
+                If (CRT <= cqCutoff And replicateConf >= cqConfCutoff) Then
+                    CqArr(cqArrCount) = CRT.Value
+                    cqArrCount = cqArrCount + 1
+                End If
+                
+                If roxScore < roxCutoff Then
+                    Set highlightROX = FormattingWS.Range(FormattingWS.Cells(i, 4), FormattingWS.Cells(i, 15))  'if ROX < Rox Cutoff then highlight from Column D:O in red
+                    With highlightROX
+                        .Interior.Color = RGB(255, 0, 0)
+                    End With
+                End If
+            Next CRT
+            
+            If cqArrCount >= (NumReplicates + 1) Then
+                ReDim Preserve CqArr(1 To cqArrCount - 1)
+                minCq = Application.WorksheetFunction.Min(CqArr)
+                With FinalResult
+                    .Value = "Detected"
+                    .Interior.Color = RGB(0, 255, 0)
+                End With
+                With FinalCrt
+                    .Value = minCq
+                End With
+                With microbialLoad
+                    .Value = getMicrobialLoad(FirstTarget.Value, minCq)
+                End With
+            Else                                'if cqArrCount is not >= (NumReplicates + 1) then not enough Cq values were added in order to call the target detected
+                With FinalResult
+                    .Value = "Not Detected"
+                    .Interior.Color = xlNone
+                End With
+                With FinalCrt
+                    .Value = 0#
+                End With
+                invalidCount = invalidCount + 1
+                invalidArr(invalidCount) = FinalResult.Address
+            End If
+            
+            If FirstTarget.Value = zSPP.Value Then      'zSPP will always be the last target for each patient - this is ensured by always applying custom filtering
+                If invalidCount = 30 Then   'if invalid count = 30 then all targets for that patient were not detected - including xeno - results are "Invalid"
+                    For j = LBound(invalidArr, 1) To UBound(invalidArr, 1)  'loop through each "Not Detected" address and turn color to yellow to indicate invalid result to tech
+                        Set invalidRNG = FormattingWS.Range(invalidArr(j))
+                        With invalidRNG
+                            .Interior.Color = RGB(255, 255, 0)
+                        End With
+                    Next j
+                    ReDim invalidArr(1 To 30) As String
+                    invalidCount = 0
+                Else
+                    ReDim invalidArr(1 To 30) As String
+                    invalidCount = 0
+                End If
+            End If
+        Next i
+        
+        
+
+                
+'
+'                        '----------Might have to change this to "Long" instead of "String"-------------
+'        Dim RedBorder As Range, SplitAccessionNumber As String, RedBorderMatch As Variant, ColumnLocation As Integer
+'        Dim FungalRRSheet As Worksheet, FungalRRSheetALastRow As Long, FungalSearchRangeA As Range, FindNumberOfTargetsForPatient As Integer, PatientTarget As Range
+'        Dim PatientRowOnRRSheet As Variant, FindTargetonFormattingWS As Variant, PossibleTarget As Range, RerunFinalResult As Range
+'
+'            Set FungalRRSheet = Workbooks.Open(rrFilePath).Sheets("Sheet1")
+'
+'                'RedBorder = Name + Accession Number + SpecID
+'        For Each RedBorder In ImptPtInfo.Range("B12:B105").Cells      '-------------------------------Apply Border to Rerun Targets - IF ANY(Start)----------------------------------
+'            If RedBorder.Borders.Color = RGB(230, 0, 0) Then        'If red borders are applied to ImptPTInfo then find how many targets are being rerun on rerun sheet - place name, position + targets on Reruns To Pull
+'                ColumnLocation = 0
+'                ColumnLocation = RedBorder.Column   'Column Location - will tell me where the final Name + Targets need to go on Reruns To Pull
+'                SplitAccessionNumber = Split(RedBorder.Value, Chr(10))(1)   'split the information imported from the Ligo excel files - this isolates just the accession number so I can find it in the result file data - result file data only has accession number
+'                RedBorderMatch = Application.Match(SplitAccessionNumber, RedBorderSearchRng, 0) 'RedBorderSearchRng = Column D of result file data "Sample Name"
+'
+'                If Not IsError(RedBorderMatch) Then 'RedBorderMatch = Row # of where the patient is found on FormattingWS - Starting Row for that patient, first target will always be P.Vulgaris +55 rows will always be Vancomycin
+'
+'                    With FungalRRSheet
+'                        FungalRRSheetALastRow = .Cells(Rows.Count, "A").End(xlUp).Row
+'                        Set FungalSearchRangeA = FungalRRSheet.Range("A1:A" & FungalRRSheetALastRow).Cells
+'                    End With
+'                    PatientRowOnRRSheet = Application.Match(RedBorder.Value, FungalSearchRangeA, 0)  'returns the row # where patient rerun data starts on the rerun sheet
+'                    If Not IsError(PatientRowOnRRSheet) Then
+'                        FindNumberOfTargetsForPatient = 0
+'                        FindNumberOfTargetsForPatient = FungalRRSheet.Application.WorksheetFunction.CountIf(FungalSearchRangeA, RedBorder.Value)  'Counts # of times the same Patient Name + Accession Number + Specimen ID are found on the rerun file...Result = # of total targets needing a 2nd result for that patient
+'                        For Each PatientTarget In FungalRRSheet.Range(FungalRRSheet.Cells(PatientRowOnRRSheet, 2), FungalRRSheet.Cells(((PatientRowOnRRSheet + FindNumberOfTargetsForPatient) - 1), 2)).Cells
+'                            For Each PossibleTarget In FormattingWS.Range(FormattingWS.Cells(RedBorderMatch, 5), FormattingWS.Cells((RedBorderMatch + 89), 5)).Cells  'for each target on formattingWS.range(Start of patient data:End of patient data) total of 90 (30 targets, tested in triplicate) rows per patient
+'                                    With PossibleTarget.Offset(0, -1)   'Double check - Making sure I'm searching in the correct range and grabbing the correct targets to put on the rerun file as a 2nd result
+'                                        .Borders.Color = RGB(230, 0, 0) 'I'm only pulling the targets that have the red border in Column E, on the same line as the interpreted result = fill color on Reruns To Pull
+'                                        .Borders.Weight = xlThick
+'                                    End With
+'                                Set RerunFinalResult = PossibleTarget.Offset(0, 8)
+'                                If (PossibleTarget.Value = PossibleTarget.Offset(1, 0).Value And PossibleTarget.Value = PossibleTarget.Offset(2, 0)) Then   'only apply border to one of the duplicate targets - double checking I'm grabbing the target name that's only on the same line as the final result so I know my "final result" will be in the same spot every time
+'                                  If PossibleTarget.Value = PatientTarget.Value Then    'if target on OpenArray Raw Data WS = the target thats on the fungal rerun worksheet then highlight it in red
+'                                  With PossibleTarget
+'                                      .Borders.Color = RGB(230, 0, 0)
+'                                      .Borders.Weight = xlThick
+'                                  End With
+'                                    If ColumnLocation = "2" Then
+'                                        With ColumnBReruns
+'                                            .Value = RedBorder.Value
+'                                            .Borders.Color = RedBorder.Borders.Color
+'                                            .Borders.Weight = RedBorder.Borders.Weight
+'                                        End With
+'                                        With ColumnBReruns.Offset(0, 1)
+'                                            .Value = Trim(RedBorder.Offset(0, -1).Value)
+'                                        End With
+'                                        With ColumnBReruns.Offset(0, 2)
+'                                            .Value = PossibleTarget.Value
+'                                            .Borders.Color = PossibleTarget.Borders.Color
+'                                            .Borders.Weight = PossibleTarget.Borders.Weight
+'                                            .Interior.Color = RerunFinalResult.Interior.Color
+'                                        End With
+'                                        Set ColumnBReruns = ColumnBReruns.Offset(1, 0)
+'                                    End If
+'                                  Else
+'                                      GoTo NxtPossibleTarg
+'                                  End If
+'                                End If
+'NxtPossibleTarg:            Next PossibleTarget
+'                        Next PatientTarget
+'                    End If
+'                End If
+'            End If
+'        Next RedBorder                                                       '-------------------------Apply Border to Rerun Targets - IF ANY(End)-------------------------
+'
+'        FungalRRSheet.Parent.Close False
+    
+        With FormattingWS
+            With FormattingWS.Range("A2:C500")
+                .HorizontalAlignment = xlHAlignCenter
+                .Columns.AutoFit
+            End With
+            With FormattingWS.Range("D10:O" & FormattingWBCrtLastRow)
+                .HorizontalAlignment = xlHAlignCenter
+                .VerticalAlignment = xlVAlignCenter
+                .Columns.AutoFit
+            End With
+            With FormattingWS.Range("P10:Q" & FormattingWBCrtLastRow)
+                .ColumnWidth = 36
+                .WrapText = True
+                .VerticalAlignment = xlVAlignCenter
+            End With
+        End With
+
+        With PullReruns
+            With .Range("A9:A100, C9:D100")
+                .ColumnWidth = 30
+                .Font.Size = 14
+                .WrapText = True
+                .HorizontalAlignment = xlCenter
+                .VerticalAlignment = xlVAlignCenter
+            End With
+            With .Range("B7:B100")
+                .Font.Size = 14
+                .Font.Bold = True
+                .ColumnWidth = 12
+                .HorizontalAlignment = xlCenter
+                .VerticalAlignment = xlVAlignCenter
+            End With
+        End With
+        
+        FormattingWS.Activate
+        If FormattingWS.AutoFilterMode = True Then
+            FormattingWS.AutoFilterMode = False
+        End If
+        FungalQuickFilterByID.UserForm_Initialize
+        FungalQuickFilterByID.Show (0)
+        
+Call OptimizeCode_End
+
+End Sub
+
+Sub Create_Ligo_Exports_File()
+
+Call OptimizeCode_Begin
+
+Dim ws As Worksheet, LigoExportsWS As Worksheet, ImpPtInfo As Worksheet, SaveDuplicateFile As String, UTIFSO As Object, DupSourceLoc As String, DestinationLoc As String
+Dim RangeValue As Range, LigoRanges As Range, i As Integer
+Dim LigoExportsDest As Range, WSLastRow As Long, LigoExportsLastRow As Long
+Dim AnalysisResultsPath As String, DuplicateFileLocation As String, FileNameConstant As String
+Dim RackDate As Range, RackNumber As Range
+Dim TrichphyDetected As Integer, GenericDetected As Integer
+Dim HighECN As Integer, ModerateECN As Integer, LowECN As Integer
+Dim HighCopy As String, ModerateCopy As String, LowCopy As String
+Dim AccNum As Range, Target As Range, Result As Range, FinalCrt As Range, ESTcopy As Range
+Dim PTC As String, PEC As String, NEC As String, NTC As String, TargetName As Range, ELastRow As Long, ChangingInfo As Range
+Dim Cq As Range, FinalCrtx2 As Range, EstCopyNum As Range, TrichHighECN As Integer, TrichModECN As Integer, TrichLowECN As Integer
+Dim ReviewYesNo
+
+Dim CopyTopTreatment As String, CopySysTreatment As String, TrichphyTopTreat As String, TrichphySysTreat As String
+
+AnalysisResultsPath = "X:\Analysis Results\"                         'Analysis Results file location -------------------------
+DuplicateFileLocation = "X:\Resulting\Open Array\Nail (Fungal)\Duplicate LigoExports Files\" 'Duplicate file for us to refer to -------------------------
+
+Set ImpPtInfo = ThisWorkbook.Sheets("Import Patient Information")
+Set ws = ThisWorkbook.Sheets("OpenArray Raw Data")
+Set LigoExportsWS = ThisWorkbook.Sheets("Ligo Exports")
+'Set RackDate = ImpPtInfo.Range("B5")  come back to these - trim rack date so it's just the date and can be used in the naming of the ligo file
+'Set RackNumber = ImpPtInfo.Range("B6")
+
+If ws.AutoFilterMode = True Then
+    With ws
+        .AutoFilterMode = False
+    End With
+    Else
+End If
+    
+PTC = "PTC"
+PEC = "PEC"
+NEC = "NEC"
+NTC = "NTC"
+
+HighCopy = "High"
+ModerateCopy = "Moderate"
+LowCopy = "Low"
+
+        FileNameConstant = (Format(Now, "YYYYMMDD")) & "_Nail_RACKDATE_RACKNUMBER_Results"
+        
+        LigoExportsWS.Range("A1:Q3000").Clear
+        
+        WSLastRow = ws.Cells(Rows.Count, "D").End(xlUp).Row
+        Set LigoExportsDest = LigoExportsWS.Cells(Rows.Count, "D").End(xlUp).Offset(1, 0)
+
+        With LigoExportsWS
+            .Range("A1").Value = "Well"
+            .Range("B1").Value = "Fungal"
+            .Range("D1").Value = "Sample"
+            .Range("E1").Value = "Target"
+            .Range("M1").Value = "Cq"
+            .Range("N1").Value = ws.Range("N10").Value
+            .Range("O1").Value = "Est Copy Number"
+        End With
+        
+            For i = 11 To WSLastRow Step 3
+            
+                Set AccNum = ws.Range("D" & i)
+                Set Target = ws.Range("E" & i)
+                Set Result = ws.Range("M" & i)
+                Set FinalCrt = ws.Range("N" & i)
+                Set ESTcopy = ws.Range("O" & i)
+                Set TopTreat = ws.Range("P" & i)
+                Set SysTreat = ws.Range("Q" & i)
+                Set LigoRanges = Application.Union(AccNum, Target, Result, FinalCrt, ESTcopy)       'Directly changing values of range variables will change the values on "OpenArray Raw Data" WS - I don't want that
+
+                For Each RangeValue In LigoRanges   'If RangeValue is used as a locator, this value = what will be placed in the result file
+
+                    If (LigoExportsDest.Column = 15 And LigoExportsDest.Offset(0, -1).Value = "500") Then     'Ligo repurposed the "Result Column" as Col O (15) - so bring all "Inconclusives" to this column so they show on the report
+                        With LigoExportsDest                                'as long as the targets
+                            .Value = "Inconclusive"
+                        End With
+                    ElseIf RangeValue = "" Then
+                        GoTo NextRV
+                    Else
+                        With LigoExportsDest
+                            .Value = RangeValue.Value
+                        End With
+                    End If
+                    
+NextRV:      If (LigoExportsDest.Column = 4 Or LigoExportsDest.Column = 13 Or LigoExportsDest.Column = 14) Then
+                        Set LigoExportsDest = LigoExportsDest.Offset(0, 1)
+                    ElseIf LigoExportsDest.Column = 5 Then
+                        Set LigoExportsDest = LigoExportsDest.Offset(0, 8)
+                    End If
+                Next RangeValue
+                        Set LigoExportsDest = LigoExportsDest.Offset(1, -11)
+            Next i
+            
+            With LigoExportsWS
+                ELastRow = .Cells(.Rows.Count, "E").End(xlUp).Row
+                Set ChangingInfo = LigoExportsWS.Range("E2:E" & ELastRow)
+            End With
+    
+        '6-20-22 - CHANGED THE GROUPING OF ASPERGILLUS, CANDIDA, MICROSPORUM, TRICHOSPORON, TRICHYOPHYTON GENUS LOGIC
+        
+        Dim targName As Range
+        Dim g1Arr, g2Arr, lastTargetArr
+        Dim g1MLarr, g2MLarr, minCqArr, g2minCqArr
+        Dim g1MLcount As Integer, g2MLcount As Integer
+        Dim g1Match, g2Match, lastTargetMatch
+        Dim genusName As String
+        Dim minCq As Double, highestMLoad As Integer    '-----------------------changed highestMLoad from string to integer-------------------------------
+        
+        g1Arr = Array(aFUM, aNIGE, aTER, aVERS, cALB, cPARAP, mAUD, mCAN, mGYP, mNAN, tBEIG, tMUC)
+        g2Arr = Array(tINT, tRUB, tSOUD, tTON, tVIOL)
+        lastTargetArr = Array(aVERS, cPARAP, mNAN, tMUC, tVIOL)
+        
+            'group 1 arrays + counts handle 4/5 groups
+        ReDim g1MLarr(1 To 5) As Variant
+        g1MLcount = 1
+        ReDim minCqArr(1 To 5) As Variant
+        
+            'group 2 arrays + counts handle 1/5 groups
+        ReDim g2MLarr(1 To 5) As Variant
+        g2MLcount = 1
+        ReDim g2minCqArr(1 To 5) As Variant
+        
+        For i = 2 To ELastRow
+            Set AccNum = LigoExportsWS.Cells(i, 4)
+            Set targName = LigoExportsWS.Cells(i, 5)
+            Set Cq = LigoExportsWS.Cells(i, 13)
+            Set FinalCrtx2 = LigoExportsWS.Cells(i, 14)
+            Set EstCopyNum = LigoExportsWS.Cells(i, 15)
+            
+            g2Match = Application.Match(targName, g2Arr, 0)
+            g1Match = Application.Match(targName, g1Arr, 0)
+            If Not IsError(g1Match) Then
+                If Cq = "Detected" Then
+                    g1MLarr(g1MLcount) = MLtoNUM(EstCopyNum.Value)      'convert microbial load to a number and store in array
+                    minCqArr(g1MLcount) = FinalCrtx2.Value     'store cq of detected target - will grab the lowest number later
+                    g1MLcount = g1MLcount + 1
+                End If
+                
+                lastTargetMatch = Application.Match(targName, lastTargetArr, 0)     'if the individual target found = any of the last targets of each group
+                If Not IsError(lastTargetMatch) Then
+                    genusName = findGenus(targName.Value)           'call function to change name to genus group
+                    With targName
+                        .Value = genusName
+                    End With
+                    
+                    If g1MLcount > 1 Then                                                  'check if count is > 1 - if so, then an individual target was detected for a group
+                        ReDim Preserve g1MLarr(1 To g1MLcount - 1)
+                        ReDim Preserve minCqArr(1 To g1MLcount - 1)
+                        
+                        With FinalCrtx2
+                            .Value = Application.WorksheetFunction.Min(minCqArr)    'Minimum Cq
+                        End With
+                        highestMLoad = Application.WorksheetFunction.Max(g1MLarr)   'Isolate largest number
+                        With EstCopyNum
+                            .Value = NUMtoML(highestMLoad)                                  'convert number to corresponding microbial load
+                        End With
+                    End If
+                        ReDim g1MLarr(1 To 5) As Variant
+                        ReDim minCqArr(1 To 5) As Variant
+                        g1MLcount = 1
+                End If
+            ElseIf Not IsError(g2Match) Then    'trichophyton group
+                If Cq = "Detected" Then
+                    g2MLarr(g2MLcount) = MLtoNUM(EstCopyNum.Value)
+                    g2minCqArr(g2MLcount) = FinalCrtx2.Value
+                    g2MLcount = g2MLcount + 1
+                End If
+                
+                lastTargetMatch = Application.Match(targName, lastTargetArr, 0)     'if the individual target found = any of the last targets of each group
+                If Not IsError(lastTargetMatch) Then
+                    genusName = findGenus(targName.Value)           'call function to change name to genus group
+                    With targName
+                        .Value = genusName
+                    End With
+                    
+                    If g2MLcount > 1 Then                                                  'check if count is > 1 - if so, then an individual target was detected for a group
+                        ReDim Preserve g2MLarr(1 To g2MLcount - 1)
+                        ReDim Preserve g2minCqArr(1 To g2MLcount - 1)
+                        
+                        With FinalCrtx2
+                            .Value = Application.WorksheetFunction.Min(g2minCqArr)    'Minimum Cq
+                        End With
+                        highestMLoad = Application.WorksheetFunction.Max(g2MLarr)   'Isolate largest number
+                        With EstCopyNum
+                            .Value = NUMtoML(highestMLoad)                                  'convert number to corresponding microbial load
+                        End With
+                    End If
+                        ReDim g2MLarr(1 To 5) As Variant
+                        ReDim g2minCqArr(1 To 5) As Variant
+                        g2MLcount = 1
+                End If
+            End If
+        Next i
+
+LigoExportsLastRow = LigoExportsWS.Cells(Rows.Count, "D").End(xlUp).Row
+
+With LigoExportsWS.Range("N1:N" & LigoExportsLastRow)
+    .NumberFormat = "0.00"
+End With
+
+With LigoExportsWS.Range("D1:E" & LigoExportsLastRow, "M:Q")
+     .HorizontalAlignment = xlHAlignCenter
+    .Columns.AutoFit
+End With
+
+ReviewYesNo = MsgBox("Would you like to review the result file before exporting to Ligo?", vbQuestion + vbYesNo, "User Response")
+
+If ReviewYesNo = vbYes Then
+    LigoExportsWS.Activate
+    Call OptimizeCode_End
+    Exit Sub
+Else
+'    LigoExportsWS.Copy
+'    With ActiveWorkbook             'intially save in duplicate file location and copy file to Analysis Results
+'        SaveDuplicateFile = Application.GetSaveAsFilename(InitialFileName:=DuplicateFileLocation & FileNameConstant, FileFilter:="Saving Duplicate LigoExports File(*.csv),*.csv")
+'        If SaveDuplicateFile = "False" Then
+'            Call OptimizeCode_End
+'            Exit Sub
+'        Else
+'            .SaveAs fileName:=SaveDuplicateFile, FileFormat:=xlCSV
+'            .Close False
+'                MsgBox ("Duplicate file has been saved to " & DuplicateFileLocation & " folder")
+'            Set UTIFSO = CreateObject("Scripting.Filesystemobject")
+'                DupSourceLoc = SaveDuplicateFile
+'                DestinationLoc = AnalysisResultsPath
+'
+'                UTIFSO.copyfile Source:=DupSourceLoc, Destination:=DestinationLoc
+'                MsgBox ("Duplicate file as been copied and place in Analysis Results Folder")
+'        End If
+'    End With
+End If
+Call OptimizeCode_End
+
+End Sub
+
+Attribute VB_Name = "D_Microbial_Loads"
+Public Function getMicrobialLoad(TargetName As String, minCq As Double) As String
+
+Dim Low As String, Moderate As String, High As String
+
+    Low = "Low"   '1,000 - 10,000 copies/uL
+    Moderate = "Moderate"    '10,000 - 100,000 copies/uL
+    High = "High" '> 100,000 copies/uL
+    
+            If (TargetName = "T. soudanense" Or TargetName = "T. rubrum" Or TargetName = "T. tonsurans" Or TargetName = "T. interdigitale" Or TargetName = "T. violaceum") Then
+                If minCq > 24.509 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 24.509 And minCq > 21.496) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 21.469 Then
+                    getMicrobialLoad = High
+                End If
+                
+                'microsporum spp
+            ElseIf (TargetName = "M. canis" Or TargetName = "M. gypseum" Or TargetName = "M. nanum" Or TargetName = "M. audouinii") Then
+                If minCq > 25.512 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 25.512 And minCq > 22.177) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 22.177 Then
+                    getMicrobialLoad = High
+                End If
+                
+                'floccosum
+            ElseIf TargetName = "E. floccosum" Then
+                If minCq > 24.411 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 24.411 And minCq > 21.496) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 21.496 Then
+                    getMicrobialLoad = High
+                End If
+            End If
+
+                'Non-Dermatophyte mold
+            If (TargetName = "A. niger" Or TargetName = "A. terreus" Or TargetName = "A. fumigatus" Or TargetName = "A. versicolor") Then
+                If minCq > 24.64 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 24.64 And minCq > 21.48) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 21.48 Then
+                    getMicrobialLoad = High
+                End If
+                
+            ElseIf (TargetName = "A. strictum" And minCq > 24.324) Or (TargetName = "Alternaria spp." And minCq > 25.268) _
+                    Or (TargetName = "F. solani" And minCq > 23.069) Or (TargetName = "G. candidum" And minCq > 25.281) _
+                    Or (TargetName = "N. mangiferae" And minCq > 24.615) Or (TargetName = "S. brevicaulis" And minCq > 23.322) Then
+                    
+                    getMicrobialLoad = Low
+                    
+            ElseIf (TargetName = "A. strictum" And minCq <= 24.324 And minCq > 21.407) Or (TargetName = "Alternaria spp." And minCq <= 25.268 And minCq > 22.246) _
+                    Or (TargetName = "F. solani" And minCq <= 23.069 And minCq > 19.952) Or (TargetName = "G. candidum" And minCq <= 25.281 And minCq > 22.255) _
+                    Or (TargetName = "N. mangiferae" And minCq <= 24.615 And minCq > 21.445) Or (TargetName = "S. brevicaulis" And minCq <= 23.322 And minCq > 20.328) Then
+                    
+                    getMicrobialLoad = Moderate
+                        
+            ElseIf (TargetName = "A. strictum" And minCq <= 21.407) Or (TargetName = "Alternaria spp." And minCq <= 22.246) _
+                    Or (TargetName = "F. solani" And minCq <= 19.952) Or (TargetName = "G. candidum" And minCq <= 22.255) _
+                    Or (TargetName = "N. mangiferae" And minCq <= 21.445) Or (TargetName = "S. brevicaulis" And minCq <= 20.328) Then
+                    
+                    getMicrobialLoad = High
+            End If
+            
+                'Yeast
+            If (TargetName = "T. mucoides" Or TargetName = "T. beigelii") Then
+                If minCq > 24.224 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 24.224 And minCq > 21.327) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 21.327 Then
+                    getMicrobialLoad = High
+                End If
+                
+            ElseIf (TargetName = "C. albicans" Or TargetName = "C. parapsilosis") Then
+                If minCq > 24.323 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 24.323 And minCq > 21.376) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 21.376 Then
+                    getMicrobialLoad = High
+                End If
+                
+            ElseIf TargetName = "P. onychis" Then
+                If minCq > 26.225 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 26.225 And minCq > 23.249) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 23.249 Then
+                    getMicrobialLoad = High
+                End If
+            End If
+            
+                'parasitic
+            If TargetName = "S. scabiei" Then
+                If minCq > 25.894 Then
+                    getMicrobialLoad = Low
+                ElseIf (minCq <= 25.894 And minCq > 22.737) Then
+                    getMicrobialLoad = Moderate
+                ElseIf minCq <= 22.737 Then
+                    getMicrobialLoad = High
+                End If
+            End If
+End Function
+
+Attribute VB_Name = "E_Fungal_Export_Reruns"
+Sub Fungal_Export_Normal_Reruns()
+
+    Call OptimizeCode_Begin
+
+Dim RerunsToPull As Worksheet, FungalRRSheet As Worksheet, ExportCol As Variant, col As Variant
+Dim RRSheetTargetLastRow As Long, RRSheetSearchRng As Range, RRSheetDest As Range, ThinBorders As Range
+Dim RackNumber As String, RackDate As String, Rerun As Range, RRSheetALastRow As Long
+
+ChDrive "X"
+
+    Set RerunsToPull = ThisWorkbook.Sheets("Reruns To Pull")
+    
+    Set FungalRRSheet = Workbooks(rrFileName).Sheets(1)
+        With FungalRRSheet
+            RRSheetTargetLastRow = .Cells(.Rows.Count, "B").End(xlUp).Row
+            RRSheetALastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        End With
+
+    ExportCol = Array("A")
+    
+    Set RRSheetDest = FungalRRSheet.Range("B" & RRSheetTargetLastRow).Offset(1, -1) 'First value will goto rr sheet Column A - setting destination range off of column B last row
+    
+    For Each col In ExportCol
+    
+    RackNumber = RerunsToPull.Cells(8, col)
+    RackDate = Left(RerunsToPull.Cells(2, col).Value, (InStr(RerunsToPull.Cells(2, col).Value, "  ")) - 1) 'Trims DATE  TIME value in A2
+        
+        If IsEmpty(RerunsToPull.Cells(9, col)) = False Then
+            With RRSheetDest
+                .Value = CStr(RackDate & " " & RackNumber)
+                .Interior.Color = RGB(0, 0, 0)
+                .Font.Color = RGB(255, 255, 255)
+            End With
+        Else
+            GoTo NextColumn
+        End If
+            Set RRSheetDest = RRSheetDest.Offset(1, 0)
+            
+        For Each Rerun In RerunsToPull.Range(RerunsToPull.Cells(9, col), RerunsToPull.Cells(Rows.Count, col).End(xlUp)).Cells
+            If Rerun.Borders.Weight = xlThin Then
+                With RRSheetDest
+                    .Value = Rerun.Value
+                End With
+                With RRSheetDest.Offset(0, 1)
+                    .Value = Rerun.Offset(0, 2).Value
+                End With
+                With RRSheetDest.Offset(0, 2)
+                   .Value = Rerun.Offset(0, 3).Value
+                End With
+            Set RRSheetDest = RRSheetDest.Offset(1, 0)
+            End If
+       Next Rerun
+    
+NextColumn:    Next col
+    
+    With FungalRRSheet.Range("A:M")
+        .ColumnWidth = 25
+        .Font.Size = 12
+        .WrapText = True
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlVAlignCenter
+    End With
+    
+    Call OptimizeCode_End
+End Sub
+
+Sub Fungal_Bordered_Reruns()
+
+    Call OptimizeCode_Begin
+
+Dim RR2Pull As Worksheet, UTIRerunWS As Worksheet, BorderedExportCol As Variant, BorderedRRCol As Variant, BorderedPatient As Range, BorderedTarget As Range
+Dim UTIRerunWSPatientRngLastRow As Long, FungalRRSheetSearchRng As Range, RackDate2 As String, RackNumber2 As String, FinalTargetDestination As Range
+Dim PatientNameMatch As Variant, TargetIDRNG As Range, CountNumberOfRRSheetDuplicates As Integer
+
+
+Set RR2Pull = ThisWorkbook.Sheets("Reruns To Pull")
+Set UTIRerunWS = Workbooks(rrFileName).Worksheets("Sheet1")
+
+    With UTIRerunWS
+        UTIRerunWSPatientRngLastRow = .Cells(Rows.Count, "A").End(xlUp).Row
+    End With
+
+    Set FungalRRSheetSearchRng = UTIRerunWS.Range("A1:A" & UTIRerunWSPatientRngLastRow)
+    
+    BorderedExportCol = Array("A")
+       
+    For Each BorderedRRCol In BorderedExportCol
+        
+        RackNumber2 = RR2Pull.Cells(8, BorderedRRCol)
+        RackDate2 = Left(RR2Pull.Cells(2, BorderedRRCol).Value, (InStr(RR2Pull.Cells(2, BorderedRRCol).Value, "  ")) - 1)
+        
+        For Each BorderedPatient In RR2Pull.Range(RR2Pull.Cells(9, BorderedRRCol), RR2Pull.Cells(Rows.Count, BorderedRRCol).End(xlUp)).Cells
+            If BorderedPatient.Borders.Color = RGB(230, 0, 0) Then
+                Set BorderedTarget = BorderedPatient.Offset(0, 2)
+                PatientNameMatch = Application.Match(BorderedPatient.Value, FungalRRSheetSearchRng, 0) 'find patientID match in Column A - The ID's will always be placed in Column A
+                If Not IsError(PatientNameMatch) Then       'if match found, count # of times this patient ID is found on rerun sheet
+                    CountNumberOfRRSheetDuplicates = 0
+                    CountNumberOfRRSheetDuplicates = Application.WorksheetFunction.CountIf(FungalRRSheetSearchRng, BorderedPatient)    'count the number of targets that particular patient has
+                Set TargetIDRNG = UTIRerunWS.Range(UTIRerunWS.Cells(PatientNameMatch, 2), UTIRerunWS.Cells(((PatientNameMatch + CountNumberOfRRSheetDuplicates) - 1), 2)).Find(BorderedTarget.Value, LookIn:=xlValues) 'create a searchable range based on total number of targets being rerun per patient
+                    If Not (TargetIDRNG Is Nothing) Then
+                        Set FinalTargetDestination = UTIRerunWS.Cells(TargetIDRNG.Row, Columns.Count).End(xlToLeft).Offset(0, 1)
+                        With FinalTargetDestination
+                            .Value = BorderedTarget.Value
+                            .Interior.Color = BorderedTarget.Interior.Color
+                            .Borders.Weight = BorderedTarget.Borders.Weight
+                            .Borders.Color = BorderedTarget.Borders.Color
+                            If BorderedTarget.Interior.Color = RGB(255, 255, 0) Then
+                                .Offset(0, 1).Value = "Inconclusive"
+                            ElseIf BorderedTarget.Interior.Color = RGB(0, 255, 0) Then
+                                .Offset(0, 1).Value = "Detected"
+                            ElseIf BorderedTarget.Interior.Color = xlNone Then
+                                .Offset(0, 1).Value = "Not Detected"
+                            End If
+                            .Offset(0, 2).Value = RackDate2 & " " & RackNumber2
+                            .Offset(0, 2).Interior.Color = RGB(0, 0, 0)
+                            .Offset(0, 2).Font.Color = RGB(255, 255, 255)
+                        End With
+                        
+                        Set FinalTargetDestination = FinalTargetDestination.Offset(0, 1)
+                    Else:
+                        MsgBox "Could not find " & BorderedTarget.Value & " for " & BorderedPatient.Value & "."
+                        Exit Sub
+                    End If
+                End If
+            End If
+        Next BorderedPatient
+    Next BorderedRRCol
+    
+                With UTIRerunWS.Range("A:P")        'UTIRERUNWS IS SET TO WORKBOOKS.OPEN  ADD IN Open Workbook Module to Open/Close rerun sheet
+                    .ColumnWidth = 23
+                    .Font.Size = 12
+                    .WrapText = True
+                    .HorizontalAlignment = xlCenter
+                    .VerticalAlignment = xlVAlignCenter
+                End With
+    Call OptimizeCode_End
+
+End Sub
+
+Attribute VB_Name = "F_Fungal_Auto_File_Create"
+Sub Fungal_Auto_Create_Files()
+    Call OptimizeCode_Begin
+
+Dim CurrentMonthRerunFile As Worksheet
+Dim CurrentMonthName As String, PreviousMonth As String, Currentyear As String
+Dim NewRerunFileName As String, NewRerunFileNameExt As String, PlainRerunFileName As String
+Dim SourceFileName As String, DestinationFileName As String
+Dim FSO As Object, OldRerunFileExt As String, OldRerunFileName As String
+Dim OldRerunFileWorksheet As Worksheet, OldRerunFileWorkbook As Workbook, AlastRow As Long, PatientName As Range, DestinationOnNewWorkbook As Range, OldRerunName As String
+Dim FindPatientRackInformation As Range
+Dim SaveEachFileCurrentYear As String, SaveEachFileCurrentMonth As String
+Dim CurrentMonthNoYear As String
+Dim TestNameAbbrev As String
+    TestNameAbbrev = "Nail (Fungal)"
+Dim NewandPreviousMonthRerunSheetLocation As String
+    NewandPreviousMonthRerunSheetLocation = "X:\Resulting\Open Array\Nail (Fungal)\"
+Dim AnalyzedMacroFilesLocation As String
+    AnalyzedMacroFilesLocation = "X:\Resulting\Open Array\Nail (Fungal)\Analyzed Nail (Fungal) Excel Files\"
+Dim ArchivedRerunSheetsLocation As String
+    ArchivedRerunSheetsLocation = "X:\Resulting\Open Array\Nail (Fungal)\Archived Nail (Fungal) Rerun Sheets\"
+    
+    
+    Currentyear = Year(Date)
+    CurrentMonthNoYear = MonthName(Month(Now))
+    CurrentMonthName = MonthName(Month(Now)) & " " & Currentyear
+    PreviousMonth = Format(DateAdd("m", -1, Date), "mmmm") & " " & Currentyear
+    
+    NewRerunFileName = NewandPreviousMonthRerunSheetLocation & CurrentMonthName & " - " & TestNameAbbrev & " Rerun Sheet"
+    NewRerunFileNameExt = NewandPreviousMonthRerunSheetLocation & CurrentMonthName & " - " & TestNameAbbrev & " Rerun Sheet.xlsx"
+    SaveEachFileCurrentYear = AnalyzedMacroFilesLocation & Currentyear
+    SaveEachFileCurrentMonth = AnalyzedMacroFilesLocation & Currentyear & "\" & CurrentMonthNoYear
+    
+        If Dir(SaveEachFileCurrentYear, vbDirectory) = "" Then
+            MkDir SaveEachFileCurrentYear                   'if directory "X:\Resulting\Analyzed RRM Excel Files\" & CurrentYear does not exist - make it
+        Else
+
+        End If
+        
+        If Dir(SaveEachFileCurrentMonth, vbDirectory) = "" Then
+            MkDir SaveEachFileCurrentMonth                  'if directory "X:\Resulting\Analyzed RRM Excel Files\" & CurrentYear & "\" & CurrentMonthNoYear does not exist, then make it
+        Else
+        
+        End If
+            'create new rerun file for current month if one doesn't already exist
+        If Dir(NewRerunFileNameExt) = "" Then                      'checking if rerun file for current month does not exist in file directory
+            Workbooks.Add.SaveAs fileName:=NewRerunFileName        'if file does not exist - then create, name as current month & year & RRM Rerun Sheet, and save as new workbook
+            MsgBox "A new rerun file has been created in folder: " & vbNewLine & NewRerunFileName, vbOKOnly
+            
+        Else
+                                                                
+        End If
+
+            'Rerun File names & extensions - will print "Current Month & Current Year - *TEST ABBREV* Rerun Sheet
+        OldRerunFileExt = NewandPreviousMonthRerunSheetLocation & PreviousMonth & " - " & TestNameAbbrev & " Rerun Sheet.xlsx"
+        OldRerunFileName = NewandPreviousMonthRerunSheetLocation & PreviousMonth & " - " & TestNameAbbrev & " Rerun Sheet"
+        PlainRerunFileName = CurrentMonthName & " - " & TestNameAbbrev & " Rerun Sheet"
+        OldRerunName = PreviousMonth & " - " & TestNameAbbrev & " Rerun Sheet"
+
+        If Dir(OldRerunFileExt, vbDirectory) <> "" Then
+           
+           Workbooks.Open (OldRerunFileExt)
+            Set OldRerunFileWorkbook = Workbooks(OldRerunName)
+            Set OldRerunFileWorksheet = OldRerunFileWorkbook.Sheets(1)
+            Set CurrentMonthRerunFile = Workbooks.Open(NewRerunFileNameExt).Sheets(1)
+
+            With OldRerunFileWorksheet
+                AlastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+            End With
+                
+            Set DestinationOnNewWorkbook = CurrentMonthRerunFile.Cells(Rows.Count, "A").End(xlUp).Offset(1, 0)
+                
+                
+            For Each PatientName In OldRerunFileWorksheet.Range("A1:A" & AlastRow).Cells
+                If IsEmpty(PatientName.Value) = False And IsEmpty(PatientName.Offset(0, 3).Value) = True And PatientName.Interior.Color <> RGB(0, 0, 0) Then 'if patient information is there and the cell 3 columns to the right is empty and patient name is not a rack information header then
+                    
+                    With OldRerunFileWorksheet.Range(PatientName, PatientName.End(xlUp))
+                        Application.FindFormat.Clear
+                        Application.FindFormat.Interior.Color = RGB(0, 0, 0)
+                        Set FindPatientRackInformation = .Find("*", SearchDirection:=xlPrevious, searchformat:=True)
+                    End With
+                    With PatientName.Offset(0, 3)
+                        .Value = ("Automatically transferred to: " & PlainRerunFileName & ".")
+                        .Font.Color = RGB(0, 0, 0)
+                    End With
+                    
+                    DestinationOnNewWorkbook.Value = FindPatientRackInformation.Value   'rack text for incomplete patient to new wb
+                    DestinationOnNewWorkbook.Interior.Color = FindPatientRackInformation.Interior.Color 'rack color to new wb
+                    DestinationOnNewWorkbook.Font.Color = FindPatientRackInformation.Font.Color 'rack font color to new wb
+                    Set DestinationOnNewWorkbook = DestinationOnNewWorkbook.Offset(1, 0)
+
+                    With DestinationOnNewWorkbook
+                        .Value = PatientName.Value
+                        .Interior.Color = PatientName.Interior.Color
+                        .Font.Color = PatientName.Font.Color
+                    End With
+                    With DestinationOnNewWorkbook.Offset(0, 1)
+                        .Value = PatientName.Offset(0, 1).Value
+                        .Interior.Color = PatientName.Offset(0, 1).Interior.Color
+                        .Font.Color = PatientName.Font.Color
+                    End With
+                    Set DestinationOnNewWorkbook = DestinationOnNewWorkbook.Offset(1, 0)
+                End If
+            Next PatientName
+            
+            Application.FindFormat.Clear
+            
+            With CurrentMonthRerunFile.Range("A:A")
+                .ColumnWidth = 25
+                .Rows.AutoFit
+                .HorizontalAlignment = xlHAlignCenter
+                .VerticalAlignment = xlVAlignCenter
+            End With
+            
+            OldRerunFileWorksheet.Parent.Close True
+            CurrentMonthRerunFile.Parent.Close True
+            
+            Dim CurrentYearDir As String
+            CurrentYearDir = ArchivedRerunSheetsLocation & Currentyear
+           
+                If Dir(CurrentYearDir, vbDirectory) = "" Then       'if folder named as current year does not exist in X:\Resulting\Archived RRM Rerun Sheets
+                    MkDir CurrentYearDir
+                    Else
+                End If
+            
+            Set FSO = CreateObject("Scripting.Filesystemobject")        'scripting.filesystemobject is excels Object for moving/creating/copying files to other locations
+            SourceFileName = OldRerunFileExt            'file path & file name & file extension to be moved
+            DestinationFileName = CurrentYearDir & PreviousMonth & " - " & TestNameAbbrev & " Rerun Sheet.xlsx"
+            
+            FSO.movefile Source:=SourceFileName, Destination:=DestinationFileName
+                MsgBox ("Last months rerun sheet has been moved to: " & DestinationFileName & "." & vbNewLine & vbNewLine & "All reruns without a 2nd rerun have been transferred to: " & PlainRerunFileName & ".")
+        End If
+        
+        Call OptimizeCode_End
+End Sub
+
+Attribute VB_Name = "G_Create_Result_File"
+Sub CreateModifiedFile()
+
+Dim ws As Worksheet, ResultFileWS As Worksheet, SaveDuplicateFile As String, UTIFSO As Object, DupSourceLoc As String, DestinationLoc As String
+Dim AnalysisResultsPath As String, DuplicateFileLocation As String, FileNameConstant As String
+
+
+Set ResultFileWS = ThisWorkbook.Sheets("Ligo Exports")
+
+
+ChDrive "X"
+
+AnalysisResultsPath = "X:\Analysis Results\"                         'Analysis Results file location -------------------------
+DuplicateFileLocation = "X:\Resulting\Open Array\Nail (Fungal)\Duplicate LigoExports Files\" 'Duplicate file for us to refer to -------------------------
+
+FileNameConstant = (Format(Now, "YYYYMMDD")) & "_Nail_RACKDATE_RACKNUMBER_Results"
+
+ResultFileWS.Copy
+    With ActiveWorkbook             'intially save in duplicate file location and copy file to Analysis Results
+        SaveDuplicateFile = Application.GetSaveAsFilename(InitialFileName:=DuplicateFileLocation & FileNameConstant, FileFilter:="Saving Duplicate LigoExports File(*.csv),*.csv")
+        If SaveDuplicateFile = "False" Then
+            Call OptimizeCode_End
+            Exit Sub
+        Else
+            .SaveAs fileName:=SaveDuplicateFile, FileFormat:=xlCSV
+            .Close False
+                MsgBox ("Duplicate file has been saved to " & DuplicateFileLocation & " folder")
+            Set UTIFSO = CreateObject("Scripting.Filesystemobject")
+                DupSourceLoc = SaveDuplicateFile
+                DestinationLoc = AnalysisResultsPath
+
+                UTIFSO.copyfile Source:=DupSourceLoc, Destination:=DestinationLoc
+                MsgBox ("Duplicate file as been copied and place in Analysis Results Folder")
+        End If
+    End With
+
+End Sub
+
+Attribute VB_Name = "H_Fungal_Misc"
+Public Function RerunPatient(AccNum As String)
+
+Dim RRtoPull As Worksheet, ImportPTInfo As Worksheet
+Dim FindFullID As Range, RRtoPullLastRow As Long, RRtoPullDest As Range
+Dim SplitArray As Variant, AccNumber As String, TargetName As String
+
+SplitArray = Split(AccNum, ",", -1)
+AccNumber = SplitArray(0)
+TargetName = SplitArray(1)
+
+Erase SplitArray
+
+Set ImportPTInfo = ThisWorkbook.Sheets("Import Patient Information")
+
+Set RRtoPull = ThisWorkbook.Sheets("Reruns To Pull")
+    With RRtoPull
+        RRtoPullLastRow = .Cells(.Rows.Count, "C").End(xlUp).Row
+        Set RRtoPullDest = .Range("C" & RRtoPullLastRow).Offset(1, -2)
+    End With
+
+Set FindFullID = ImportPTInfo.Range("B12:B103").Find(AccNumber)
+
+     If Not (FindFullID Is Nothing) Then
+          If (FindFullID.Borders.Weight = xlThin) Then
+               With RRtoPullDest
+                    .Value = FindFullID.Value
+               End With
+               With RRtoPullDest.Offset(0, 1)
+                    .Value = Trim(FindFullID.Offset(0, -1).Value)
+               End With
+               With RRtoPullDest.Offset(0, 2)
+                    .Value = TargetName
+               End With
+               With RRtoPullDest.Offset(0, 3)
+                    If (TargetName = "A. fumigatus" Or TargetName = "A. niger" Or TargetName = "A. terreus" Or TargetName = "A. versicolor") Then
+                         .Value = "Aspergillus spp."
+                    ElseIf (TargetName = "C. albicans" Or TargetName = "C. parapsilosis") Then
+                         .Value = "Candida spp."
+                    ElseIf (TargetName = "M. audouinii" Or TargetName = "M. canis" Or TargetName = "M. gypseum" Or TargetName = "M. nanum") Then
+                         .Value = "Microsporum spp."
+                    ElseIf (TargetName = "T. beigelii" Or TargetName = "T. mucoides") Then
+                         .Value = "Trichosporon spp."
+                    ElseIf (TargetName = "T. interdigitale" Or TargetName = "T. rubrum" Or TargetName = "T. soudanense" Or TargetName = "T. tonsurans" Or TargetName = "T. violaceum") Then
+                         .Value = "Trichophyton spp."
+                    End If
+               End With
+        Else
+        End If
+    Else
+        MsgBox ("Could not find Accession Number: " & AccNumber & "on the 'Import Patient Information' worksheet.")
+    End If
+Set RRtoPullDest = RRtoPullDest.Offset(1, 0)
+
+End Function
+Sub FungalOpenRerunSheet()
+
+Call OptimizeCode_Begin
+Dim Ret, checkifOpen As Workbook
+
+ChDrive "X"
+
+    Set checkifOpen = Workbooks.Open(rrFilePath)
+    Ret = IsWorkBookOpenNow(rrFilePath)
+        
+        isExit = False
+        
+        If checkifOpen.ReadOnly = True Then
+            MsgBox ("Rerun file is currently opened by another user." & vbNewLine & vbNewLine & "Have the other user close the file and try again.")
+                isExit = True
+            Exit Sub
+        ElseIf Ret = True Then
+            isExit = False
+        Else
+            Workbooks.Open (rrFilePath)
+        End If
+Call OptimizeCode_End
+
+End Sub
+Sub FungalRerunSheetSave()
+    Call OptimizeCode_Begin
+        With Workbooks(rrFileName)
+            .Save
+        End With
+    Call OptimizeCode_End
+End Sub
+Sub OptimizeCode_Begin()
+
+Application.ScreenUpdating = False
+Application.EnableEvents = False
+Application.Calculation = xlCalculationManual
+End Sub
+Sub OptimizeCode_End()
+
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+Application.Calculation = xlCalculationAutomatic
+
+End Sub
+Function IsWorkBookOpenNow(fileName As String) As Boolean
+    Dim ff As Long, ErrNo As Long
+
+    On Error Resume Next
+    ff = FreeFile()
+    Open fileName For Input Lock Read As #ff
+    Close ff
+    ErrNo = Err
+    On Error GoTo 0
+
+    Select Case ErrNo
+    Case 0:    IsWorkBookOpenNow = False
+    Case 70:   IsWorkBookOpenNow = True
+    Case Else: Error ErrNo
+    End Select
+End Function
+
+Attribute VB_Name = "I_Genus_Name"
+Function findGenus(NameToChange As String) As String
+    If NameToChange = aVERS Then
+        findGenus = "Aspergillus spp."
+    ElseIf NameToChange = cPARAP Then
+        findGenus = "Candida spp."
+    ElseIf NameToChange = mNAN Then
+        findGenus = "Microsporum spp."
+    ElseIf NameToChange = tMUC Then
+        findGenus = "Trichosporon spp."
+    ElseIf NameToChange = tVIOL Then
+        findGenus = "Trichophyton spp."
+    End If
+End Function
+Function MLtoNUM(microbialLoad As String) As Integer
+    Select Case microbialLoad
+        Case "Low"
+            MLtoNUM = 1
+        Case "Moderate"
+            MLtoNUM = 2
+        Case "High"
+            MLtoNUM = 3
+    End Select
+End Function
+Function NUMtoML(nuM As Integer) As String
+    Select Case nuM
+        Case 1
+            NUMtoML = "Low"
+        Case 2
+            NUMtoML = "Moderate"
+        Case 3
+            NUMtoML = "High"
+    End Select
+End Function
+
+Attribute VB_Name = "A_Import_Ligo_Excel_Files"
+Sub Import_Patient_Information(CalledFrom As String)
+
+Call OptimizeCode_Begin
+
+    Dim FileToOpen As Variant
+    Dim xRet As Boolean
+    Dim Name As String
+    Dim ligoWB As Workbook, ligoWS As Worksheet, UTImacro As Worksheet
+    Dim rackPos As Range, rrmDest As Range, rrmRackPos As Range, findSpace As Range
+    Dim arrLigoMatch, arrRRMmatch, arrLoc
+    Dim ligoLastRow As Long, rrmLastRow As Long
+    Dim myPath As String
+    myPath = "X:\Reditus\ligo_exports\Nail (Fungal)"   '"X:\Jacob\Macros\Open Array\UTM Open Array\UTI\Resulting Macro\"
+    ChDrive myPath
+    ChDir myPath
+   
+    arrLoc = Array("    A-3", "    A-4", "    A-5", "    A-6", "    A-7", "    A-8", "    A-9", "    A-10", "    A-11", "    A-12", _
+                   "    B-1", "    B-2", "    B-3", "    B-4", "    B-5", "    B-6", "    B-7", "    B-8", "    B-9", "    B-10", "    B-11", "    B-12", _
+                   "    C-1", "    C-2", "    C-3", "    C-4", "    C-5", "    C-6", "    C-7", "    C-8", "    C-9", "    C-10", "    C-11", "    C-12", _
+                   "    D-1", "    D-2", "    D-3", "    D-4", "    D-5", "    D-6", "    D-7", "    D-8", "    D-9", "    D-10", "    D-11", "    D-12", _
+                   "    E-1", "    E-2", "    E-3", "    E-4", "    E-5", "    E-6", "    E-7", "    E-8", "    E-9", "    E-10", "    E-11", "    E-12", _
+                   "    F-1", "    F-2", "    F-3", "    F-4", "    F-5", "    F-6", "    F-7", "    F-8", "    F-9", "    F-10", "    F-11", "    F-12", _
+                   "    G-1", "    G-2", "    G-3", "    G-4", "    G-5", "    G-6", "    G-7", "    G-8", "    G-9", "    G-10", "    G-11", "    G-12", _
+                   "    H-1", "    H-2", "    H-3", "    H-4", "    H-5", "    H-6", "    H-7", "    H-8", "    H-9", "    H-10", "    H-11", "    H-12")
+
+    FileToOpen = Application.GetOpenFilename(Title:="", FileFilter:="Excel Files (*.xls*),*xls*")       'if file types change to csv or something else, this needs changed
+        If FileToOpen <> False Then
+   
+            Name = CStr(FileToOpen)
+            xRet = IsWorkBookOpenNow(Name)
+           
+            Set ligoWB = Application.Workbooks.Open(FileToOpen)
+            Set UTImacro = ThisWorkbook.Worksheets("Import Patient Information")
+            Set ligoWS = ligoWB.Worksheets(1)
+        
+            With UTImacro
+                rrmLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+            End With
+                
+            Set rrmRackPos = UTImacro.Range("A1:A" & rrmLastRow).Cells
+       
+            With UTImacro.Range("B5:B105")
+                .WrapText = True
+                .RowHeight = 16
+                .ColumnWidth = 27.43
+                .VerticalAlignment = xlVAlignTop
+                With UTImacro.Range("B5:B11")
+                    .HorizontalAlignment = xlHAlignCenter
+                    .Rows.AutoFit
+                    .Font.Size = 14
+                End With
+            End With
+            
+                If CalledFrom = "RACK 1" Then
+                    With UTImacro.Range("B5:B105")
+                        .ClearContents
+                    End With
+                End If
+                
+                With ligoWS
+                    ligoLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row                             'these files are generated from an older version of excel, must find the last row of this version
+                    .Range("B:I").UnMerge
+                End With
+               
+                Set findSpace = ligoWS.Range("A1:A100").Find(" ", , xlValues)                            'Find rack ID - Find where rack positioning ("    A1") starts then offset -1 to get RackID
+               
+            If Not findSpace Is Nothing Then                'if findspace = nothing then no patient information is saved in the file.
+                If CalledFrom = "RACK 1" Then
+                    UTImacro.Range("B11").Value = findSpace.Offset(-1, 0).Value  '<----- rack ID
+                End If
+            End If
+            
+            If findSpace Is Nothing Then                    'if accessioners forgot to maxmize the rack in RACK PLACEMENT, the file would get saved with no patient information inside, normally an error would occur, instead it
+                If CalledFrom = "RACK 1" Then
+                    MsgBox ("No Patients Found, the file was saved incorrectly." & vbNewLine & "Re-save the file correctly and try again.")
+                    Exit Sub
+                End If
+            End If
+            
+            If CalledFrom = "RACK 1" Then
+                UTImacro.Range("B5").Value = ligoWS.Range("E1").End(xlDown).Value   '<--- Date/Time
+            End If
+            
+            For Each rackPos In ligoWS.Range("A1:A" & ligoLastRow).Cells                                'For each cell in ligo-exports file
+                arrLigoMatch = Application.Match(rackPos.Value, arrLoc, 0)                              'Search for cell values that are stored in arrLoc
+                   
+                    If Not IsError(arrLigoMatch) Then
+                        arrRRMmatch = Application.Match(rackPos.Value, rrmRackPos, 0)                   'if cell value is found, then find the same/matching cell value in Column A of RRM
+                        If CalledFrom = "RACK 1" Then
+                            Set rrmDest = UTImacro.Cells(arrRRMmatch, 2)
+                        End If
+                        rrmDest.Value = rackPos.Offset(0, 1).Value                                      'Once destination has been set, from Ligo file, offset 1 Column to get desired information and place value to rrmDest
+                    End If
+            Next rackPos
+           
+        With UTImacro
+            .Range("PTCNTCRange").ClearContents                       'clear out X's that are located in file - the wells the X's occupy are designated for controls.
+        End With
+
+        If xRet <> True Then
+            ligoWB.Close False
+        End If
+
+        End If
+        
+Call OptimizeCode_End
+
+End Sub
+
+Attribute VB_Name = "AA_Variable_Constants"
+'aFUM, aNIGE, aTER, aVERS, cALB, cPARAP, mAUD, mCAN, mGYP, mNAN, tBEIG, tMUC, tINT, tRUB, tSOUD, tTON, tVIOL, aSPP, cLUN, eFLOC, fSOL, gCAND, nMAN, pONY, sBREV, sSCAB, zSPP, aSTR, sDIM, fXENO
+Public Property Get varStorage() As Worksheet
+    Set varStorage = ThisWorkbook.Sheets("Target Variables")
+End Property
+Function aFUM() As Range
+     Set aFUM = varStorage.Range("B1:B31").Find("A. fumigatus", LookIn:=xlValues)
+'     MsgBox aFUM.Address
+End Function
+Function aNIGE() As Range
+     Set aNIGE = varStorage.Range("B1:B31").Find("A. niger", LookIn:=xlValues)
+'     MsgBox aNIGE.Address
+End Function
+Function aTER() As Range
+     Set aTER = varStorage.Range("B1:B31").Find("A. terreus", LookIn:=xlValues)
+'     MsgBox aTER.Address
+End Function
+Function aVERS() As Range
+     Set aVERS = varStorage.Range("B1:B31").Find("A. versicolor", LookIn:=xlValues)
+'     MsgBox aVERS.Address
+End Function
+Function cALB() As Range
+     Set cALB = varStorage.Range("B1:B31").Find("C. albicans", LookIn:=xlValues)
+'     MsgBox cALB.Address
+End Function
+Function cPARAP() As Range
+     Set cPARAP = varStorage.Range("B1:B31").Find("C. parapsilosis", LookIn:=xlValues)
+'     MsgBox cPARAP.Address
+End Function
+Function mAUD() As Range
+     Set mAUD = varStorage.Range("B1:B31").Find("M. audouinii", LookIn:=xlValues)
+'     MsgBox mAUD.Address
+End Function
+Function mCAN() As Range
+     Set mCAN = varStorage.Range("B1:B31").Find("M. canis", LookIn:=xlValues)
+'     MsgBox mCAN.Address
+End Function
+Function mGYP() As Range
+     Set mGYP = varStorage.Range("B1:B31").Find("M. gypseum", LookIn:=xlValues)
+'     MsgBox mGYP.Address
+End Function
+Function mNAN() As Range
+     Set mNAN = varStorage.Range("B1:B31").Find("M. nanum", LookIn:=xlValues)
+'     MsgBox mNAN.Address
+End Function
+Function tBEIG() As Range
+     Set tBEIG = varStorage.Range("B1:B31").Find("T. beigelii", LookIn:=xlValues)
+'     MsgBox tBEIG.Address
+End Function
+Function tMUC() As Range
+     Set tMUC = varStorage.Range("B1:B31").Find("T. mucoides", LookIn:=xlValues)
+'     MsgBox tMUC.Address
+End Function
+Function tINT() As Range
+     Set tINT = varStorage.Range("B1:B31").Find("T. interdigitale", LookIn:=xlValues)
+'     MsgBox tINT.Address
+End Function
+Function tRUB() As Range
+     Set tRUB = varStorage.Range("B1:B31").Find("T. rubrum", LookIn:=xlValues)
+'     MsgBox tRUB.Address
+End Function
+Function tSOUD() As Range
+     Set tSOUD = varStorage.Range("B1:B31").Find("T. soudanense", LookIn:=xlValues)
+'     MsgBox tSOUD.Address
+End Function
+Function tTON() As Range
+     Set tTON = varStorage.Range("B1:B31").Find("T. tonsurans", LookIn:=xlValues)
+'     MsgBox tTON.Address
+End Function
+Function tVIOL() As Range
+     Set tVIOL = varStorage.Range("B1:B31").Find("T. violaceum", LookIn:=xlValues)
+'     MsgBox tVIOL.Address
+End Function
+Function aSPP() As Range
+     Set aSPP = varStorage.Range("B1:B31").Find("Alternaria spp.", LookIn:=xlValues)
+'     MsgBox aSPP.Address
+End Function
+Function cLUN() As Range
+     Set cLUN = varStorage.Range("B1:B31").Find("C. lunata", LookIn:=xlValues)
+'     MsgBox cLUN.Address
+End Function
+Function eFLOC() As Range
+     Set eFLOC = varStorage.Range("B1:B31").Find("E. floccosum", LookIn:=xlValues)
+'     MsgBox eFLOC.Address
+End Function
+Function fSOL() As Range
+     Set fSOL = varStorage.Range("B1:B31").Find("F. solani", LookIn:=xlValues)
+'     MsgBox fSOL.Address
+End Function
+Function gCAND() As Range
+     Set gCAND = varStorage.Range("B1:B31").Find("G. candidum", LookIn:=xlValues)
+'     MsgBox gCAND.Address
+End Function
+Function nMAN() As Range
+     Set nMAN = varStorage.Range("B1:B31").Find("N. mangiferae", LookIn:=xlValues)
+'     MsgBox nMAN.Address
+End Function
+Function pONY() As Range
+     Set pONY = varStorage.Range("B1:B31").Find("P. onychis", LookIn:=xlValues)
+'     MsgBox pONY.Address
+End Function
+Function sBREV() As Range
+     Set sBREV = varStorage.Range("B1:B31").Find("S. brevicaulis", LookIn:=xlValues)
+'     MsgBox sBREV.Address
+End Function
+Function sSCAB() As Range
+     Set sSCAB = varStorage.Range("B1:B31").Find("S. scabiei", LookIn:=xlValues)
+'     MsgBox sSCAB.Address
+End Function
+Function zSPP() As Range
+     Set zSPP = varStorage.Range("B1:B31").Find("Zygosaccharomyces spp.", LookIn:=xlValues)
+'     MsgBox zSPP.Address
+End Function
+Function aSTR() As Range
+     Set aSTR = varStorage.Range("B1:B31").Find("A. strictum", LookIn:=xlValues)
+'     MsgBox aSTR.Address
+End Function
+Function sDIM() As Range
+     Set sDIM = varStorage.Range("B1:B31").Find("S. dimidiatum", LookIn:=xlValues)
+'     MsgBox sDIM.Address
+End Function
+Function fXENO() As Range
+     Set fXENO = varStorage.Range("B1:B31").Find("F-Xeno", LookIn:=xlValues)
+'     MsgBox fXENO.Address
+End Function
+
+Attribute VB_Name = "B_Create_Format112_384"
+Public isExit As Boolean
+Public Property Get rrFilePath() As String
+    rrFilePath = "X:\Resulting\Open Array\Nail (Fungal)\" & MonthName(Month(Now)) & " " & Year(Date) & " - Nail (Fungal) Rerun Sheet.xlsx"
+End Property
+Public Property Get rrFileName() As String
+    rrFileName = MonthName(Month(Now)) & " " & Year(Date) & " - Nail (Fungal) Rerun Sheet.xlsx"
+End Property
+
+Sub Convert_To_384_AccuFill_Import()
+
+Call OptimizeCode_Begin
+
+Dim ImportPatientInformation As Worksheet, AccufillImport As Worksheet, Save384File As Variant, FileName384 As String
+Dim HelperColumnPosition As Range, AccessionNumber As Range
+Dim HelperColumnDLastRow As Long, SaveResultingMacro As String
+Dim OpenArray1and2Array As Variant, OpenArray1and2Match, AccufillPosition1and2Match
+Dim AccufillImportPositionLastRow As Long, AccufillPosition As Range, Patient384Location As Range
+Dim FileName384csvPath As String, FileName384csvFolderLocation As String
+Dim FirstSampleOfOpenArray As Range, fiName As Variant, PatientRange As Range
+Dim FungalRerunSheet As Worksheet, FungalRerunSheetLastRow As Long, FungalRerunSheetSearchRange As Range, FungalRerunMatch As Range, PatientID As Range, FindRerunMatch As Variant
+Dim Currentyear As String, CurrentMonthNoYear As String
+Dim RNB6 As String, SplB5 As String
+
+Set ImportPatientInformation = ThisWorkbook.Sheets("Import Patient Information")
+Set AccufillImport = ThisWorkbook.Sheets("Accufill Import 384-File")
+
+Currentyear = Year(Date)
+CurrentMonthNoYear = MonthName(Month(Now))
+FileName384csvPath = "D:\Users\INSTR-ADMIN.REDITUSLABS\Desktop\384-Well\"    '384 file save location on the QuantStudio's PC - D Drive
+FileName384csvFolderLocation = "Resulting Macro\384 Files"
+
+'If Dir(FileName384csvPath, vbDirectory) = "" Then
+'    MsgBox "Cannot connect to 'D' drive.  'D' drives only exist on Quantstudio PC's"
+'    MsgBox "Open the macro on the appropriate Quantstudio PC to create the Accufill 384 Import File"
+'    Exit Sub
+'End If
+
+'-----------------------------------------------------------------
+SplB5 = Format(Left(ImportPatientInformation.Range("B5").Value, 10), "YYYYMMDD")
+RNB6 = ImportPatientInformation.Range("B6").Value
+
+If (IsEmpty(SplB5) = False And IsEmpty(RNB6) = False) Then
+    FileName384 = (Format(Now, "YYYYMMDD")) & "_Nail_" & SplB5 & "_" & RNB6
+Else
+    FileName384 = (Format(Now, "YYYYMMDD")) & "_Nail_*RackDate*_*RackNumber*"
+End If
+'-----------------------------------------------------------------
+For Each FirstSampleOfOpenArray In ImportPatientInformation.Range("FirstSampleOfAllOpenArrays").Cells                             'ensuring the techs have entered in the serial numbers for the arrays before continuing
+    If IsEmpty(FirstSampleOfOpenArray) = False Then
+        If (IsEmpty(ImportPatientInformation.Range("B12")) = False And IsEmpty(ImportPatientInformation.Range("B7")) = True) Then      'if patient information exists on the 1st array (green cells), then if the designated serial number B7 has no text then create hard stop
+                Application.ScreenUpdating = True
+                With ImportPatientInformation.Range("B7")
+                    .Borders.Color = RGB(255, 0, 0)
+                    .Borders.Weight = xlThick
+                        MsgBox ("Enter missing information before continuing")
+                    .Borders.Color = RGB(0, 0, 0)
+                    .Borders.Weight = xlMedium
+                    Exit Sub
+                End With
+        ElseIf (IsEmpty(ImportPatientInformation.Range("B34")) = False And IsEmpty(ImportPatientInformation.Range("B8")) = True) Then
+                Application.ScreenUpdating = True
+                With ImportPatientInformation.Range("B8")
+                    .Borders.Color = RGB(255, 0, 0)
+                    .Borders.Weight = xlThick
+                        MsgBox ("Enter missing information before continuing")
+                    .Borders.Color = RGB(0, 0, 0)
+                    .Borders.Weight = xlMedium
+                    Exit Sub
+                End With
+        ElseIf (IsEmpty(ImportPatientInformation.Range("B58")) = False And IsEmpty(ImportPatientInformation.Range("B9")) = True) Then
+                Application.ScreenUpdating = True
+                With ImportPatientInformation.Range("B9")
+                    .Borders.Color = RGB(255, 0, 0)
+                    .Borders.Weight = xlThick
+                        MsgBox ("Enter missing information before continuing")
+                    .Borders.Color = RGB(0, 0, 0)
+                    .Borders.Weight = xlMedium
+                    Exit Sub
+                End With
+        ElseIf (IsEmpty(ImportPatientInformation.Range("B82")) = False And IsEmpty(ImportPatientInformation.Range("B10")) = True) Then
+                Application.ScreenUpdating = True
+                With ImportPatientInformation.Range("B10")
+                    .Borders.Color = RGB(255, 0, 0)
+                    .Borders.Weight = xlThick
+                        MsgBox ("Enter missing information before continuing")
+                    .Borders.Color = RGB(0, 0, 0)
+                    .Borders.Weight = xlMedium
+                    Exit Sub
+                End With
+        End If
+    ElseIf (IsEmpty(FirstSampleOfOpenArray) = True And FirstSampleOfOpenArray.Address = "$B$12") Then         'if no patient information has been loaded into any arrays then place "N/A" for the designated serial numbers
+        With ImportPatientInformation.Range("B7")
+            .Value = "N/A"
+        End With
+    ElseIf (IsEmpty(FirstSampleOfOpenArray) = True And FirstSampleOfOpenArray.Address = "$B$34") Then
+        With ImportPatientInformation.Range("B8")
+            .Value = "N/A"
+        End With
+    ElseIf (IsEmpty(FirstSampleOfOpenArray) = True And FirstSampleOfOpenArray.Address = "$B$58") Then
+        With ImportPatientInformation.Range("B9")
+            .Value = "N/A"
+        End With
+    ElseIf (IsEmpty(FirstSampleOfOpenArray) = True And FirstSampleOfOpenArray.Address = "$B$82") Then
+        With ImportPatientInformation.Range("B10")
+            .Value = "N/A"
+        End With
+    End If
+Next FirstSampleOfOpenArray
+
+    Set FungalRerunSheet = Workbooks.Open(rrFilePath).Sheets("Sheet1")
+        With FungalRerunSheet
+            FungalRerunSheetLastRow = .Cells(.Rows.Count, "A").End(xlUp).Row
+        End With
+
+    Set FungalRerunSheetSearchRange = FungalRerunSheet.Range("A1:A" & FungalRerunSheetLastRow).Cells
+    Set PatientRange = ImportPatientInformation.Range("B12:B105")
+        
+        PatientRange.Borders.Color = RGB(0, 0, 0)
+        PatientRange.Borders.Weight = xlThin
+
+        Set FungalRerunMatch = Nothing
+    For Each PatientID In PatientRange.Cells
+        FindRerunMatch = Application.Match(PatientID, FungalRerunSheetSearchRange, 0)      'find row # of patient id on rerun sheet
+        If Not IsError(FindRerunMatch) Then       'if the find is successful, then store
+            If FungalRerunMatch Is Nothing Then
+                Set FungalRerunMatch = PatientID   'if it's found then add it to FungalRerunMatch if nothing is in FungalRerunMatch
+            Else
+                Set FungalRerunMatch = Application.Union(PatientID, FungalRerunMatch)
+            End If
+        End If
+    Next PatientID
+
+    If Not FungalRerunMatch Is Nothing Then       'if reruns have been found on the rerun sheet, then patient ID on macro with thick red borders
+        With FungalRerunMatch.Borders
+            .Color = RGB(230, 0, 0)       '<----DARK RED
+            .Weight = xlThick
+        End With
+    End If
+
+FungalRerunSheet.Parent.Close False          'close rerun sheet, don't save
+
+With ImportPatientInformation
+    HelperColumnDLastRow = .Cells(.Rows.Count, "D").End(xlUp).Row
+End With
+With AccufillImport
+    AccufillImportPositionLastRow = .Cells(.Rows.Count, "B").End(xlUp).Row
+    .Range("FungalAccufill384PatientRange").ClearContents        'clear patient range
+    .Range("InsertPEC").Value = "PEC"                  'insert all controls is proper positions
+    .Range("InsertNEC").Value = "NEC"
+    .Range("InsertNTC").Value = "NTC"
+    .Range("InsertPTC").Value = "PTC"
+End With
+
+Set AccufillPosition = AccufillImport.Range("B1:B" & AccufillImportPositionLastRow).Cells
+
+OpenArray1and2Array = Array("A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", _
+                            "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", _
+                            "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", _
+                            "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", _
+                            "A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23", "A24", _
+                            "B13", "B14", "B15", "B16", "B17", "B18", "B19", "B20", "B21", "B22", "B23", "B24", _
+                            "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", _
+                            "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20", "D21", "D22", _
+                            "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", _
+                            "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", _
+                            "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", _
+                            "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H9", "H10", _
+                            "E13", "E14", "E15", "E16", "E17", "E18", "E19", "E20", "E21", "E22", "E23", "E24", _
+                            "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24", _
+                            "G13", "G14", "G15", "G16", "G17", "G18", "G19", "G20", "G21", "G22", _
+                            "H13", "H14", "H15", "H16", "H17", "H18", "H19", "H20", "H21", "H22")                       'removed all positions designated for control locations - A1, A2, B1, B2, C11, C12, C23, C24, D11, D12, D23, D24, G11, G12, G23, G24, H11, H12, H23, H24 - Patient info should never be here
+
+For Each HelperColumnPosition In ImportPatientInformation.Range("D12:E" & HelperColumnDLastRow).Cells
+        If HelperColumnPosition.Column = 4 Then
+            Set AccessionNumber = HelperColumnPosition.Offset(0, -2)
+        ElseIf HelperColumnPosition.Column = 5 Then
+            Set AccessionNumber = HelperColumnPosition.Offset(0, -3)
+        End If
+        
+     OpenArray1and2Match = Application.Match(HelperColumnPosition.Value, OpenArray1and2Array, 0) 'searching fungal macro helper columns D & E for a match inside array
+     If Not IsError(OpenArray1and2Match) Then
+          AccufillPosition1and2Match = Application.Match(HelperColumnPosition.Value, AccufillPosition, 0)
+          If Not IsError(AccufillPosition1and2Match) Then
+          Set Patient384Location = AccufillImport.Cells(AccufillPosition1and2Match, 3)  '<---needs changed to 3 after correct positioning is confirmed
+            If Not IsEmpty(AccessionNumber) Then
+                On Error Resume Next    'places regular text in the 384 import file
+                Patient384Location.Value = Split(AccessionNumber.Value, Chr(10))(1)     'Patient384Location.Value = AccessionNumber.Value
+                    If IsEmpty(Patient384Location.Value) Then
+                        Patient384Location.Value = AccessionNumber.Value
+                    End If
+            Else
+                 GoTo NextIteration
+            End If
+          End If
+     End If
+
+NextIteration: Next HelperColumnPosition
+
+    'save accufill 384 file
+AccufillImport.Copy
+
+ChDrive "D"
+With ActiveWorkbook
+    Save384File = Application.GetSaveAsFilename(InitialFileName:=FileName384csvPath & FileName384 & "_384_File" & ".csv", FileFilter:="AccuFill-384File (*.csv),*.csv", Title:="Save As")
+    If Save384File = False Then
+        Exit Sub
+    Else
+        .SaveAs fileName:=Save384File, FileFormat:=xlCSV
+        .Close False
+        MsgBox ("File has been saved to " & FileName384csvPath)
+    End If
+End With
+'    save macro file
+ ChDrive "X"
+    SaveResultingMacro = "X:\Resulting\Open Array\Nail (Fungal)\Analyzed Nail (Fungal) Excel Files\" & Currentyear & "\" & CurrentMonthNoYear & "\"
+fiName = Application.GetSaveAsFilename(InitialFileName:=SaveResultingMacro & FileName384 & ".xlsb", FileFilter:="Excel Macro-Enabled Workbook Binary (*.xlsb), *.xlsb", Title:="Save As")
+If fiName = False Then Exit Sub
+ActiveWorkbook.SaveAs fileName:=fiName
+
+Call OptimizeCode_End
+
+End Sub
